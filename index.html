@@ -76,10 +76,23 @@
   .grade-pick button{flex:1;background:#fff;color:var(--ink);border:1px solid var(--line);font-family:'Fraunces',serif;font-size:16px;}
   .grade-pick button.selected{background:var(--red);color:#fff;border-color:var(--red);}
   #focusInstrumentPicker button{flex:1 1 30%;font-size:13px;padding:8px 6px;}
-  .focusInst.current-editing{outline:2px solid var(--red);outline-offset:2px;border-radius:4px;}
+  .focusInst{accent-color:var(--red);width:16px;height:16px;}
+  label.current-editing{outline:2px solid var(--red);outline-offset:3px;border-radius:6px;background:rgba(230,57,70,0.08);}
   .two-col{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   #focusTabBody .two-col{grid-template-columns:1.2fr 1fr;gap:20px;}
   .checkline{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--ink-soft);}
+  /* View-only teacher accounts (e.g. Bolla): hide every mutating control app-wide. */
+  body.view-only [data-action="edit"], body.view-only [data-action="delete"], body.view-only [data-action="publish"],
+  body.view-only [data-save], body.view-only [data-rename], body.view-only [data-toggle-drop], body.view-only [data-delete-forever],
+  body.view-only #showQuizBuilderBtn, body.view-only #openFocusSettingsBtn, body.view-only #showAdvancedBtn,
+  body.view-only #previewCleanupBtn, body.view-only #runCleanupBtn, body.view-only #showArchiveControlsBtn,
+  body.view-only #toggleModeTogglesBtn, body.view-only #modeTogglesWrap, body.view-only #helpersAllowedToggle, body.view-only #helpersLedgerLinesSelect,
+  body.view-only .quiz-results-grant, body.view-only [data-mode-toggle]{ display:none !important; }
+  body.view-only input[data-grade-edit], body.view-only input[data-pin-edit], body.view-only select[data-inst-edit]{ pointer-events:none; opacity:0.6; background:#eee; }
+  body.view-only .view-only-note{ display:inline-block !important; }
+  .view-only-note{ display:none; }
+  body.restricted-view #startPromoteBtn{ display:none; }
+  body.restricted-view .restricted-view-note{ display:block !important; }
   .checkline input{width:auto;}
   .checkline-row{display:flex;gap:16px;flex-wrap:wrap;margin:8px 0 4px;}
 
@@ -735,6 +748,16 @@
 
     <!-- STUDENT MANAGEMENT -->
     <div class="tab-panel" id="tab-management">
+      <button class="ghost small-btn" id="showChangePinBtn" style="margin-bottom:10px;">Change your teacher PIN</button>
+      <div class="danger-zone" id="changePinWrap" style="display:none;margin-bottom:16px;padding:12px 14px;">
+        <div class="two-col">
+          <div><label class="small" for="currentPinInput">Current PIN</label><input type="password" id="currentPinInput" inputmode="numeric" maxlength="6"></div>
+          <div><label class="small" for="newPinInput">New PIN (4–6 digits)</label><input type="password" id="newPinInput" inputmode="numeric" maxlength="6"></div>
+        </div>
+        <button class="secondary small-btn full" id="savePinBtn" style="margin-top:10px;">Save new PIN</button>
+        <div class="msg" id="changePinMsg"></div>
+      </div>
+      <span class="view-only-note small">You're viewing this dashboard in read-only mode — editing is turned off for this account.</span>
       <p class="small" style="margin-bottom:10px;">Edit grade or instrument, look up a login or PIN, or drop a student who's left the program.</p>
       <div class="filter-row">
         <input type="text" id="mgmtSearch" placeholder="Search by name…" style="max-width:220px;">
@@ -787,6 +810,7 @@
           <h3 style="margin-bottom:8px;">New school year</h3>
           <p class="small">Promotes every active student's grade by one (6→7, 7→8). Current 8th graders are moved to the dropped/archived list as graduates. This cannot be undone from here — go through all steps carefully.</p>
           <button class="secondary" id="startPromoteBtn" style="margin-top:10px;">Start year-end promotion…</button>
+          <p class="small restricted-view-note" id="restrictedPromoteNote" style="display:none;margin-top:8px;">This account only sees part of the roster, so year-end promotion is handled by whichever teacher manages the full student list — running it from two overlapping accounts could push the same student up two grades by accident.</p>
         </div>
       </div>
     </div>
@@ -936,7 +960,30 @@ const FIREBASE_CONFIG = {
 const TEACHERS = {
   peil:      { pin: "107661", school: "MSN", label: "Mr. Peil — MSN" },
   humphries: { pin: "021214", school: "MSC", label: "Mr. Humphries — MSC" },
+  bolla:     { pin: "135246", school: "MSN", label: "Mr. Bolla — MSN",
+    restrictedView: { grades: [7], grade6Instruments: ["trumpet","frenchhorn"] } },
 };
+// Teacher PINs can be changed at runtime (see "Change your PIN" in Student
+// Management); those changes live in config/teacherAuth and always take
+// precedence over the hardcoded defaults above, which only serve as the
+// initial/fallback values.
+async function getEffectiveTeacher(username){
+  const base = TEACHERS[username];
+  if(!base) return null;
+  try{
+    const snap = await db.collection("config").doc("teacherAuth").get();
+    if(snap.exists && snap.data()[username] && snap.data()[username].pin){
+      return Object.assign({}, base, { pin: snap.data()[username].pin });
+    }
+  }catch(err){ console.error("Couldn't check for an updated PIN, using default", err); }
+  return base;
+}
+function studentMatchesRestrictedView(s, restricted){
+  if(!restricted) return true;
+  if(restricted.grades && restricted.grades.includes(s.grade)) return true;
+  if(restricted.grade6Instruments && s.grade === 6 && restricted.grade6Instruments.includes(s.primaryInstrument)) return true;
+  return false;
+}
 
 let __fbOk = true;
 try{
@@ -1240,15 +1287,20 @@ document.getElementById("teacherContinueBtn").addEventListener("click", ()=>{
 });
 document.getElementById("pinBackBtn").addEventListener("click", ()=>{ showScreen("loginScreen"); });
 document.getElementById("pinInput").addEventListener("keydown", e=>{ if(e.key==="Enter") document.getElementById("pinSubmitBtn").click(); });
-document.getElementById("pinSubmitBtn").addEventListener("click", ()=>{
+document.getElementById("pinSubmitBtn").addEventListener("click", async ()=>{
   const val = document.getElementById("pinInput").value.trim();
   const msg = document.getElementById("pinMsg");
-  const teacher = TEACHERS[pendingTeacherUsername];
+  const submitBtn = document.getElementById("pinSubmitBtn");
+  submitBtn.disabled = true;
+  const teacher = await getEffectiveTeacher(pendingTeacherUsername);
+  submitBtn.disabled = false;
   if(teacher && val === teacher.pin){
     msg.textContent = "";
     state.teacherUsername = pendingTeacherUsername;
     state.teacherSchool = teacher.school;
     state.teacherLabel = teacher.label;
+    state.teacherViewOnly = !!teacher.viewOnly;
+    state.teacherRestrictedView = teacher.restrictedView || null;
     openDashboard();
   } else { msg.textContent = "Incorrect PIN."; }
 });
@@ -1599,7 +1651,14 @@ document.querySelectorAll('input[name="level2choice"]').forEach(r=>{
 });
 
 function applyModeVisibility(){
-  const allowed = state.modesByGrade[state.grade] || {noteid:true, position:true, keysig:false, construction:false};
+  const gradeDefault = state.modesByGrade[state.grade] || {noteid:true, position:true, keysig:false, construction:false};
+  const instOverride = (state.modesByGradeInstrument && state.modesByGradeInstrument[state.grade] && state.modesByGradeInstrument[state.grade][state.instrument]) || {};
+  const allowed = {
+    noteid: instOverride.noteid != null ? instOverride.noteid : gradeDefault.noteid,
+    position: instOverride.position != null ? instOverride.position : gradeDefault.position,
+    keysig: instOverride.keysig != null ? instOverride.keysig : gradeDefault.keysig,
+    construction: instOverride.construction != null ? instOverride.construction : gradeDefault.construction,
+  };
   document.getElementById("keysigModeBtn").style.display = allowed.keysig ? "block" : "none";
   document.getElementById("constructionModeBtn").style.display = allowed.construction ? "block" : "none";
   document.querySelector('.mode-btn[data-mode="noteid"]').style.display = allowed.noteid ? "block" : "none";
@@ -1609,6 +1668,7 @@ function applyModeVisibility(){
 document.getElementById("instrumentSelect").addEventListener("change", e=>{
   state.instrument = e.target.value;
   updateInstrumentHint();
+  applyModeVisibility();
   loadInstrumentSettingsIntoUI();
   if(state.mode === "keysig") rebuildKeysigSettingsGrid();
 });
@@ -1873,7 +1933,7 @@ function weightForQKey(qKey){
   const stats = state.weightData && state.weightData[qKey];
   if(!stats || stats.answered < 2) return 1;
   const acc = stats.correct / stats.answered;
-  const BOOST = 1.6; // between "mild" and "moderate"
+  const BOOST = 0.08; // a note the student always misses appears only ~8% more often than one they always get right — everything still shows up close to evenly
   return 1 + BOOST*(1-acc);
 }
 function weightedPick(pool, qKeyFn){
@@ -2847,6 +2907,7 @@ async function loadModesConfig(){
     if(snap.exists){
       const d = snap.data();
       if(d.modesByGrade) state.modesByGrade = d.modesByGrade;
+      state.modesByGradeInstrument = d.modesByGradeInstrument || {};
       state.globalQuizHidden = !!d.globalQuizHidden;
       state.focusSettings = d.focusSettings || {};
       state.helpersAllowed = d.helpersAllowed !== false; // default true
@@ -2856,7 +2917,7 @@ async function loadModesConfig(){
 }
 async function saveModesConfig(){
   try{
-    await db.collection("config").doc("settings_"+configScope()).set({modesByGrade: state.modesByGrade, globalQuizHidden: !!state.globalQuizHidden, focusSettings: state.focusSettings || {}, helpersAllowed: state.helpersAllowed !== false, helpersLedgerLines: state.helpersLedgerLines || 0}, {merge:true});
+    await db.collection("config").doc("settings_"+configScope()).set({modesByGrade: state.modesByGrade, modesByGradeInstrument: state.modesByGradeInstrument || {}, globalQuizHidden: !!state.globalQuizHidden, focusSettings: state.focusSettings || {}, helpersAllowed: state.helpersAllowed !== false, helpersLedgerLines: state.helpersLedgerLines || 0}, {merge:true});
   }catch(err){ console.error(err); }
 }
 document.getElementById("globalHideQuizToggle").addEventListener("change", async e=>{
@@ -2890,8 +2951,9 @@ async function openDashboard(){
     const students = [];
     studentSnap.forEach(doc=> students.push(Object.assign({id:doc.id}, doc.data())));
     const inSchool = s => (s.school || "MSN") === state.teacherSchool;
-    state.allStudents = students.filter(s=>!s.dropped && inSchool(s));
-    state.droppedStudents = students.filter(s=>s.dropped && inSchool(s));
+    const inView = s => inSchool(s) && studentMatchesRestrictedView(s, state.teacherRestrictedView);
+    state.allStudents = students.filter(s=>!s.dropped && inView(s));
+    state.droppedStudents = students.filter(s=>s.dropped && inView(s));
 
     buildDashRows();
     await loadQuizzes();
@@ -2906,7 +2968,8 @@ async function openDashboard(){
     renderModeToggles();
     document.getElementById("helpersAllowedToggle").checked = state.helpersAllowed !== false;
     document.getElementById("helpersLedgerLinesSelect").value = String(state.helpersLedgerLines || 0);
-    document.getElementById("dashSubtitle").textContent = state.allStudents.length + " active student" + (state.allStudents.length===1?"":"s");
+    applyViewOnlyMode();
+    document.getElementById("dashSubtitle").textContent = state.allStudents.length + " active student" + (state.allStudents.length===1?"":"s") + (state.teacherViewOnly ? " (view only)" : "");
   }catch(err){
     console.error(err);
     document.getElementById("dashSubtitle").textContent = "Couldn't load data: " + (err.message || err.code || "unknown error");
@@ -3400,6 +3463,7 @@ document.getElementById("hideQuizBuilderBtn").addEventListener("click", ()=>{
   document.getElementById("quizBuilderCol").style.display = "none";
 });
 document.getElementById("createQuizBtn").addEventListener("click", async ()=>{
+  if(state.teacherViewOnly) return;
   const name = document.getElementById("quizName").value.trim();
   const msg = document.getElementById("quizFormMsg");
   const cats = [];
@@ -3484,7 +3548,8 @@ function loadQuizForEditing(q){
 }
 
 async function confirmDeleteQuiz(q){
-  const teacher = TEACHERS[state.teacherUsername];
+  if(state.teacherViewOnly) return;
+  const teacher = await getEffectiveTeacher(state.teacherUsername);
   const pin = prompt(`Type your teacher PIN to permanently delete "${q.name}" and every student's score on it. This cannot be undone.`);
   if(pin === null) return;
   if(!teacher || pin.trim() !== teacher.pin){ alert("Incorrect PIN — nothing was deleted."); return; }
@@ -3572,6 +3637,10 @@ async function openQuizResults(q){
 function renderQuizResultsTable(q){
   const body = document.getElementById("quizResultsBody");
   let rows = (state.quizResultsRaw || []).slice();
+  if(state.teacherRestrictedView){
+    const allowedIds = new Set(state.allStudents.map(s=>s.id).concat(state.droppedStudents.map(s=>s.id)));
+    rows = rows.filter(r=>allowedIds.has(r.id));
+  }
   rows.sort((a,b)=> quizResultsSortKey==="score" ? b.bestPct-a.bestPct : a.displayName.localeCompare(b.displayName));
   const q2 = (document.getElementById("quizResultsSearch").value||"").trim().toLowerCase();
   const gradeSel = document.getElementById("quizResultsGradeFilter").value;
@@ -3582,7 +3651,7 @@ function renderQuizResultsTable(q){
   rows.forEach(r=>{
     const tr = document.createElement("tr");
     tr.innerHTML = `<td>${r.displayName}${r.late ? ' <span class="quiz-status scheduled" title="Submitted after the close date">Late</span>' : ""}</td><td>${r.grade}</td><td><span class="acc-pill ${accClass(r.bestPct)}">${r.bestPct}%</span></td>
-      <td>${r.attempts} / ${2+r.retakesGranted}</td><td><button class="small-btn secondary">+2 retakes</button></td>`;
+      <td>${r.attempts} / ${2+r.retakesGranted}</td><td><button class="small-btn secondary quiz-results-grant">+2 retakes</button></td>`;
     tr.querySelector("button").addEventListener("click", async ()=>{
       await db.collection("quizzes").doc(q.id).collection("results").doc(r.id).update({retakesGranted: FV.increment(2)});
       openQuizResults(q);
@@ -3662,6 +3731,28 @@ async function renameStudentUsername(oldId){
 }
 
 let mgmtSortKey = "displayName", mgmtSortDir = 1;
+document.getElementById("showChangePinBtn").addEventListener("click", ()=>{
+  const wrap = document.getElementById("changePinWrap");
+  wrap.style.display = wrap.style.display === "block" ? "none" : "block";
+  document.getElementById("currentPinInput").value = "";
+  document.getElementById("newPinInput").value = "";
+  document.getElementById("changePinMsg").textContent = "";
+});
+document.getElementById("savePinBtn").addEventListener("click", async ()=>{
+  const msg = document.getElementById("changePinMsg");
+  const current = document.getElementById("currentPinInput").value.trim();
+  const next = document.getElementById("newPinInput").value.trim();
+  if(!/^\d{4,6}$/.test(next)){ msg.textContent = "New PIN must be 4-6 digits."; msg.className="msg error"; return; }
+  const teacher = await getEffectiveTeacher(state.teacherUsername);
+  if(!teacher || current !== teacher.pin){ msg.textContent = "Current PIN is incorrect."; msg.className="msg error"; return; }
+  try{
+    await db.collection("config").doc("teacherAuth").set({[state.teacherUsername]: {pin: next}}, {merge:true});
+    msg.textContent = "PIN updated. Use the new PIN next time you log in.";
+    msg.className = "msg ok";
+    document.getElementById("currentPinInput").value = "";
+    document.getElementById("newPinInput").value = "";
+  }catch(err){ console.error(err); msg.textContent = "Couldn't save — check your connection."; msg.className="msg error"; }
+});
 function renderManagement(){
   let list = (showingDropped ? state.droppedStudents : state.allStudents).slice();
   const q = (document.getElementById("mgmtSearch").value||"").trim().toLowerCase();
@@ -3801,12 +3892,43 @@ function ensureFocusPreset(type){
   return state.focusSettings[type];
 }
 
+function allowedInstrumentsForGrade(grade){
+  if(!state.teacherRestrictedView) return INSTRUMENT_KEYS;
+  const rv = state.teacherRestrictedView;
+  if(rv.grades && rv.grades.includes(grade)) return INSTRUMENT_KEYS; // a "whole" grade — everyone in it is in view
+  if(grade === 6 && rv.grade6Instruments) return rv.grade6Instruments; // a "partial" grade — only these instruments are in view
+  return [];
+}
+function isWholeGradeForTeacher(grade){
+  return !state.teacherRestrictedView || (state.teacherRestrictedView.grades||[]).includes(grade);
+}
 function renderFocusTab(){
   const type = focusActiveTab;
   const preset = ensureFocusPreset(type);
   const body = document.getElementById("focusTabBody");
   const needsInstrument = (type === "noteid" || type === "position");
-  if(!state.focusFormInstrument) state.focusFormInstrument = "trombone";
+
+  // Restricted-view teachers must pick a working grade before anything else is
+  // editable — this is how we let them reach a "partial" grade (like Bolla's
+  // 6th grade trumpet/horn) without ever accidentally touching an instrument
+  // in that grade they can't actually see (baritone, trombone, tuba).
+  let workingGradeHtml = "";
+  const restrictedGradeOptions = state.teacherRestrictedView
+    ? Array.from(new Set([...(state.teacherRestrictedView.grades||[]), ...(state.teacherRestrictedView.grade6Instruments ? [6] : [])])).sort()
+    : null;
+  if(restrictedGradeOptions){
+    if(!restrictedGradeOptions.includes(state.focusWorkingGrade)) state.focusWorkingGrade = restrictedGradeOptions[0];
+    workingGradeHtml = `
+      <div class="card" style="max-width:none;margin-bottom:14px;">
+        <div class="field-title"><label>Which grade are you setting this up for?</label></div>
+        <div class="grade-pick" id="focusWorkingGradePick">
+          ${restrictedGradeOptions.map(g=>`<button type="button" data-work-grade="${g}" class="${g===state.focusWorkingGrade?'selected':''}">Grade ${g}</button>`).join("")}
+        </div>
+        <p class="small" style="margin-top:6px;">${isWholeGradeForTeacher(state.focusWorkingGrade) ? `Every instrument is available — all of Grade ${state.focusWorkingGrade} is in your view.` : `Only ${(state.teacherRestrictedView.grade6Instruments||[]).map(k=>CATEGORY_LABELS[k]).join(" and ")} are available for Grade ${state.focusWorkingGrade} — the rest of that grade belongs to another teacher's roster.`}</p>
+      </div>`;
+  }
+  const allowedInstruments = restrictedGradeOptions ? allowedInstrumentsForGrade(state.focusWorkingGrade) : INSTRUMENT_KEYS;
+  if(!allowedInstruments.includes(state.focusFormInstrument)) state.focusFormInstrument = allowedInstruments[0];
 
   let settingsFormHtml = "";
   if(needsInstrument){
@@ -3861,7 +3983,7 @@ function renderFocusTab(){
         <div><label class="small" for="focusTLimit">Minutes (0 = unlimited)</label><input type="number" id="focusTLimit" min="0"></div>
       </div>`;
 
-  body.innerHTML = `
+  body.innerHTML = workingGradeHtml + `
     <div class="two-col" style="margin:14px 0;">
       <div class="card" style="max-width:none;">
         <label class="checkline" style="font-weight:700;color:var(--ink);"><input type="checkbox" id="focusEnabledToggle" ${preset.enabled?"checked":""}> Turn Focus Mode ON for ${MODE_LABELS[type]}</label>
@@ -3872,13 +3994,14 @@ function renderFocusTab(){
       <div class="card" style="max-width:none;">
         <div class="field-title"><label>2. Applies to — which students get this</label></div>
         <p class="small" style="margin-top:-4px;">A student is matched if their grade OR their instrument is checked below.</p>
+        ${(!restrictedGradeOptions || isWholeGradeForTeacher(state.focusWorkingGrade)) ? `
         <label class="small" style="font-weight:700;display:block;margin-top:10px;">By grade</label>
         <div class="checkline-row">
-          ${[6,7,8].map(g=>`<label class="checkline"><input type="checkbox" class="focusGrade" data-grade="${g}" ${preset.grades && preset.grades[g] ? "checked":""}> Grade ${g}</label>`).join("")}
-        </div>
+          ${(restrictedGradeOptions ? [state.focusWorkingGrade] : [6,7,8]).map(g=>`<label class="checkline"><input type="checkbox" class="focusGrade" data-grade="${g}" ${preset.grades && preset.grades[g] ? "checked":""}> Grade ${g}</label>`).join("")}
+        </div>` : `<p class="small">Grade ${state.focusWorkingGrade} can't be targeted as a whole grade — only the instruments below.</p>`}
         <label class="small" style="font-weight:700;display:block;margin-top:10px;">By instrument</label>
         <div class="checkline-row">
-          ${INSTRUMENT_KEYS.map(k=>`<label class="checkline"><input type="checkbox" class="focusInst" data-inst="${k}" ${preset.instruments && preset.instruments[k] ? "checked":""}> ${CATEGORY_LABELS[k]}</label>`).join("")}
+          ${(restrictedGradeOptions ? allowedInstruments : INSTRUMENT_KEYS).map(k=>`<label class="checkline"><input type="checkbox" class="focusInst" data-inst="${k}" ${preset.instruments && preset.instruments[k] ? "checked":""}> ${CATEGORY_LABELS[k]}</label>`).join("")}
         </div>
         <button class="full" id="applyFocusToTargets" style="margin-top:12px;">3. Save Focus settings for the checked grades/instruments</button>
         <div class="rule"></div>
@@ -3896,6 +4019,15 @@ function renderFocusTab(){
       </div>
     </div>`;
 
+  if(restrictedGradeOptions){
+    document.querySelectorAll('[data-work-grade]').forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        state.focusWorkingGrade = parseInt(btn.dataset.workGrade,10);
+        renderFocusTab();
+      });
+    });
+  }
+
   // ---- populate the settings form with the preset's current values ----
   document.getElementById("focusQLimit").value = String(preset.roundLen || 0);
   document.getElementById("focusTLimit").value = String(preset.roundTimeMinutes || 0);
@@ -3907,10 +4039,10 @@ function renderFocusTab(){
     document.querySelectorAll('input[name="focusLevel2choice"]').forEach(r=>{ r.checked = (r.value===dl.choice); });
 
     function syncInstrumentTargetCheckbox(){
-      document.querySelectorAll(".focusInst").forEach(cb=>{ cb.classList.remove("current-editing"); });
+      document.querySelectorAll(".focusInst").forEach(cb=>{ cb.closest("label").classList.remove("current-editing"); });
       const cb = document.querySelector(`.focusInst[data-inst="${state.focusFormInstrument}"]`);
       if(cb){
-        cb.classList.add("current-editing");
+        cb.closest("label").classList.add("current-editing");
         // Auto-check only the first time this instrument is ever configured — once a
         // teacher has manually unchecked it (e.g. "show its settings but don't apply
         // it yet"), simply revisiting it in the editor won't re-check it for them.
@@ -3919,7 +4051,7 @@ function renderFocusTab(){
       }
     }
     function renderInstrumentButtons(){
-      picker.innerHTML = INSTRUMENT_KEYS.map(k=>
+      picker.innerHTML = allowedInstruments.map(k=>
         `<button type="button" data-inst-pick="${k}" class="${k===state.focusFormInstrument?'selected':''}">${CATEGORY_LABELS[k]}</button>`
       ).join("");
       picker.querySelectorAll("[data-inst-pick]").forEach(btn=>{
@@ -4161,10 +4293,24 @@ function collectFocusFormSettings(type){
   return base;
 }
 
+function applyViewOnlyMode(){
+  document.body.classList.toggle("view-only", !!state.teacherViewOnly);
+  document.body.classList.toggle("restricted-view", !!state.teacherRestrictedView);
+}
 function renderModeToggles(){
   const wrap = document.getElementById("modeTogglesTableWrap");
-  let html = `<table><thead><tr><th>Grade</th><th>Note ID</th><th>Position ID</th><th>Key Signature ID</th><th>Note Construction</th></tr></thead><tbody>`;
-  [6,7,8].forEach(g=>{
+  // A "whole" grade (everyone in it is in this teacher's view) gets the
+  // simple one-row-per-grade toggle, same as always. A "partial" grade
+  // (like Bolla's 6th grade trumpet/horn slice) instead gets one row per
+  // instrument he can actually see, so turning something off for his
+  // instruments never silently affects the rest of that grade.
+  const wholeGrades = state.teacherRestrictedView ? (state.teacherRestrictedView.grades || []) : [6,7,8];
+  const partialGrades = [];
+  if(state.teacherRestrictedView && state.teacherRestrictedView.grade6Instruments && !wholeGrades.includes(6)) partialGrades.push(6);
+
+  const cols = `<th>Note ID</th><th>Position ID</th><th>Key Signature ID</th><th>Note Construction</th>`;
+  let html = `<table><thead><tr><th>Grade</th>${cols}</tr></thead><tbody>`;
+  wholeGrades.forEach(g=>{
     const m = state.modesByGrade[g] || {noteid:true,position:true,keysig:false,construction:false};
     html += `<tr><td>Grade ${g}</td>
       <td><input type="checkbox" data-mode-toggle="${g}:noteid" ${m.noteid?"checked":""}></td>
@@ -4172,13 +4318,44 @@ function renderModeToggles(){
       <td><input type="checkbox" data-mode-toggle="${g}:keysig" ${m.keysig?"checked":""}></td>
       <td><input type="checkbox" data-mode-toggle="${g}:construction" ${m.construction?"checked":""}></td></tr>`;
   });
+  partialGrades.forEach(g=>{
+    const insts = state.teacherRestrictedView.grade6Instruments || [];
+    insts.forEach(inst=>{
+      const byInst = (state.modesByGradeInstrument && state.modesByGradeInstrument[g] && state.modesByGradeInstrument[g][inst]) || {};
+      const fallback = state.modesByGrade[g] || {noteid:true,position:true,keysig:false,construction:false};
+      const m = {
+        noteid: byInst.noteid != null ? byInst.noteid : fallback.noteid,
+        position: byInst.position != null ? byInst.position : fallback.position,
+        keysig: byInst.keysig != null ? byInst.keysig : fallback.keysig,
+        construction: byInst.construction != null ? byInst.construction : fallback.construction,
+      };
+      html += `<tr><td>Grade ${g} — ${CATEGORY_LABELS[inst]}</td>
+        <td><input type="checkbox" data-mode-toggle-inst="${g}:${inst}:noteid" ${m.noteid?"checked":""}></td>
+        <td><input type="checkbox" data-mode-toggle-inst="${g}:${inst}:position" ${m.position?"checked":""}></td>
+        <td><input type="checkbox" data-mode-toggle-inst="${g}:${inst}:keysig" ${m.keysig?"checked":""}></td>
+        <td><input type="checkbox" data-mode-toggle-inst="${g}:${inst}:construction" ${m.construction?"checked":""}></td></tr>`;
+    });
+  });
   html += `</tbody></table>`;
+  if(partialGrades.length){
+    html += `<p class="small" style="margin-top:8px;">Rows shown by instrument only cover students you can actually see — they never change anything for other instruments in that grade.</p>`;
+  }
   wrap.innerHTML = html;
   wrap.querySelectorAll("[data-mode-toggle]").forEach(cb=>{
     cb.addEventListener("change", async ()=>{
       const [g, mode] = cb.dataset.modeToggle.split(":");
       if(!state.modesByGrade[g]) state.modesByGrade[g] = {noteid:true,position:true,keysig:false,construction:false};
       state.modesByGrade[g][mode] = cb.checked;
+      await saveModesConfig();
+    });
+  });
+  wrap.querySelectorAll("[data-mode-toggle-inst]").forEach(cb=>{
+    cb.addEventListener("change", async ()=>{
+      const [g, inst, mode] = cb.dataset.modeToggleInst.split(":");
+      if(!state.modesByGradeInstrument) state.modesByGradeInstrument = {};
+      if(!state.modesByGradeInstrument[g]) state.modesByGradeInstrument[g] = {};
+      if(!state.modesByGradeInstrument[g][inst]) state.modesByGradeInstrument[g][inst] = {};
+      state.modesByGradeInstrument[g][inst][mode] = cb.checked;
       await saveModesConfig();
     });
   });
@@ -4228,6 +4405,7 @@ document.getElementById("previewCleanupBtn").addEventListener("click", async ()=
   }catch(err){ console.error(err); wrap.textContent = "Couldn't check: " + (err.message||err.code); }
 });
 document.getElementById("runCleanupBtn").addEventListener("click", async ()=>{
+  if(state.teacherViewOnly) return;
   const msg = document.getElementById("archiveMsg");
   if(!cleanupMatchedRefs.length) return;
   if(!confirm(`Permanently delete ${cleanupMatchedRefs.length} answer record(s)? This cannot be undone. Dashboard totals and grades are unaffected.`)) return;
@@ -4267,6 +4445,7 @@ document.getElementById("showAdvancedBtn").addEventListener("click", ()=>{
   document.getElementById("showAdvancedBtn").textContent = showing ? "Advanced options" : "Hide advanced options";
 });
 document.getElementById("startPromoteBtn").addEventListener("click", ()=>{
+  if(state.teacherRestrictedView){ alert("Year-end promotion is only available from an account that manages the full roster."); return; }
   const toPromote = state.allStudents.filter(s=>s.grade===6 || s.grade===7);
   const toGraduate = state.allStudents.filter(s=>s.grade===8);
   state.promoteData = {toPromote, toGraduate};
@@ -4287,8 +4466,9 @@ document.getElementById("promoteNext2").addEventListener("click", ()=>{
   showPromoteStep(3);
 });
 document.getElementById("promoteFinalBtn").addEventListener("click", async ()=>{
+  if(state.teacherViewOnly || state.teacherRestrictedView) return;
   const enteredPin = document.getElementById("promoteCodeInput").value.trim();
-  const teacher = TEACHERS[state.teacherUsername];
+  const teacher = await getEffectiveTeacher(state.teacherUsername);
   if(!teacher || enteredPin !== teacher.pin){
     document.getElementById("promoteCodeMsg").textContent = "Incorrect PIN.";
     return;
