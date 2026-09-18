@@ -2031,7 +2031,7 @@ function buildNoteIdQuestion(pool){
 
 function buildPositionQuestion(pool){
   const inst = currentInstrument();
-  const m = weightedPick(pool, mm=>state.instrument+"_"+chartKey(mm));
+  const m = drawFromBag("position_"+state.instrument, pool, mm=>state.instrument+"_"+chartKey(mm));
   const spelling = spellFor(m);
   const key = chartKey(m);
   const correct = inst.chart[key];
@@ -2141,7 +2141,10 @@ function buildConstructionQuestion(){
   NATURAL_PCS.forEach(pc=>pool.push({pc, symbol:null}));
   if(f.sharps) ACCIDENTAL_PCS.forEach(pc=>pool.push({pc, symbol:"sharp"}));
   if(f.flats) ACCIDENTAL_PCS.forEach(pc=>pool.push({pc, symbol:"flat"}));
-  const pick = pool[Math.floor(Math.random()*pool.length)];
+  const pick = drawFromBag("construction_"+clef+"_"+level, pool, item=>{
+    const l = isNaturalPc(item.pc) ? PC_LETTER[item.pc] : (item.symbol==="flat" ? FLAT_NAMES[item.pc][0] : SHARP_NAMES[item.pc][0]);
+    return "construction_"+clef+"_"+(isNaturalPc(item.pc) ? PC_LETTER[item.pc] : (item.symbol==="sharp" ? SHARP_NAMES[item.pc] : FLAT_NAMES[item.pc]));
+  });
   const letter = isNaturalPc(pick.pc) ? PC_LETTER[pick.pc] : (pick.symbol==="flat" ? FLAT_NAMES[pick.pc][0] : SHARP_NAMES[pick.pc][0]);
   const displayName = isNaturalPc(pick.pc) ? PC_LETTER[pick.pc] : (pick.symbol==="sharp" ? SHARP_NAMES[pick.pc] : FLAT_NAMES[pick.pc]);
   return {
@@ -2278,7 +2281,7 @@ function buildKeysigOptionSet(){
 
 function buildKeySigQuestion(){
   const pool = enabledKeySignatures();
-  const concertKey = weightedPick(pool, k=>{
+  const concertKey = drawFromBag("keysig_"+state.instrument, pool, k=>{
     const w = writtenKeyFor(k, state.instrument);
     return "keysig_"+state.instrument+"_"+w.name;
   });
