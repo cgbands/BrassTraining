@@ -46,7 +46,17 @@
       var(--paper);
     min-height:100vh;
   }
-  html,body{margin:0;padding:0;}
+  html,body{margin:0;padding:0;
+    /* Mobile Chrome/Safari treat an overscroll drag at the top of a short,
+       scroll-less screen (e.g. this login card) as a pull-to-refresh gesture,
+       which does a real page navigation reload — wiping in-progress login
+       state and any typed name/PIN, which looks like "it just refreshes and
+       goes blank". "Request desktop site" happens to suppress this gesture,
+       which is why the bug only shows up in normal mobile mode. Containing
+       overscroll keeps the drag local to the page instead of triggering a
+       browser-level refresh, on both phones and any other touch device. */
+    overscroll-behavior-y: contain;
+  }
   body{background:transparent;color:var(--ink);font-family:'Inter',sans-serif;min-height:100vh;}
   h1,h2,h3,.display{font-family:'Fraunces',serif;color:var(--ink);font-weight:600;letter-spacing:-0.01em;margin:0;}
   .screen{min-height:100vh;display:none;flex-direction:column;align-items:center;padding:28px 16px 60px;}
@@ -1712,6 +1722,21 @@ function getFocusPreset(type){
   if(override && override.enabled && override.settings) return override.settings;
   return (state.focusSettings && state.focusSettings[type]) || null;
 }
+// Shared by all four exercise types: a Focus preset's optional question-limit/
+// time-limit override applies here regardless of which mode is selected. This
+// used to only run from loadInstrumentSettingsIntoUI (Note ID/Position ID),
+// so Key Sig ID and Note Construction saved a round-limit override but never
+// actually read it back into these inputs — now every mode goes through this.
+function applyFocusRoundLimits(type){
+  const focusPreset = getFocusPreset(type);
+  if(focusPreset && (focusPreset.roundLen || focusPreset.roundTimeMinutes)){
+    document.getElementById("roundLenSelect").value = String(focusPreset.roundLen || 0);
+    document.getElementById("roundTimeSelect").value = String(focusPreset.roundTimeMinutes || 0);
+  } else {
+    document.getElementById("roundLenSelect").value = (state.savedSettingsByInstrument[state.instrument] && state.savedSettingsByInstrument[state.instrument].roundLen != null) ? String(state.savedSettingsByInstrument[state.instrument].roundLen) : "20";
+    document.getElementById("roundTimeSelect").value = (state.savedSettingsByInstrument[state.instrument] && state.savedSettingsByInstrument[state.instrument].roundTimeMinutes != null) ? String(state.savedSettingsByInstrument[state.instrument].roundTimeMinutes) : "0";
+  }
+}
 function loadInstrumentSettingsIntoUI(){
   const inst = currentInstrument();
   const focusType = (state.mode === "noteid" || state.mode === "position") ? state.mode : null;
@@ -1744,13 +1769,7 @@ function loadInstrumentSettingsIntoUI(){
   studentSlider.setInstrument(state.instrument, minM, maxM);
   state.rangeMinMidi = minM; state.rangeMaxMidi = maxM;
   rebuildPitchGrid();
-  if(focusPreset && (focusPreset.roundLen || focusPreset.roundTimeMinutes)){
-    document.getElementById("roundLenSelect").value = String(focusPreset.roundLen || 0);
-    document.getElementById("roundTimeSelect").value = String(focusPreset.roundTimeMinutes || 0);
-  } else {
-    document.getElementById("roundLenSelect").value = (state.savedSettingsByInstrument[state.instrument] && state.savedSettingsByInstrument[state.instrument].roundLen != null) ? String(state.savedSettingsByInstrument[state.instrument].roundLen) : "20";
-    document.getElementById("roundTimeSelect").value = (state.savedSettingsByInstrument[state.instrument] && state.savedSettingsByInstrument[state.instrument].roundTimeMinutes != null) ? String(state.savedSettingsByInstrument[state.instrument].roundTimeMinutes) : "0";
-  }
+  applyFocusRoundLimits(focusType);
 }
 
 document.getElementById("modeGrid").addEventListener("click", e=>{
@@ -1769,8 +1788,8 @@ function showModeSettingsPanel(){
   document.getElementById("keysigSettings").style.display = state.mode === "keysig" ? "block" : "none";
   document.getElementById("constructionSettings").style.display = state.mode === "construction" ? "block" : "none";
   if(state.mode === "noteid" || state.mode === "position") loadInstrumentSettingsIntoUI();
-  if(state.mode === "keysig") rebuildKeysigSettingsGrid();
-  if(state.mode === "construction") initConstructionSettings();
+  if(state.mode === "keysig"){ rebuildKeysigSettingsGrid(); applyFocusRoundLimits("keysig"); }
+  if(state.mode === "construction"){ initConstructionSettings(); applyFocusRoundLimits("construction"); }
 }
 function initConstructionSettings(){
   const focusPreset = getFocusPreset("construction");
@@ -1873,9 +1892,9 @@ document.getElementById("startBtn").addEventListener("click", async ()=>{
 
 document.getElementById("playAgainBtn").addEventListener("click", async ()=>{
   if(state.quizId && state.quizIsGraded){
-    const attemptsUsed = await getQuizAttemptsUsed(state.quizId);
-    const attemptsAllowed = state.quizIsLate ? 1 : await getQuizAttemptsAllowed(state.quizId);
-    state.quizIsGraded = attemptsUsed < attemptsAllowed;
+    const info = await getQuizAttemptsInfo(state.quizId);
+    const attemptsAllowed = state.quizIsLate ? 1 : info.allowed;
+    state.quizIsGraded = info.used < attemptsAllowed;
     if(!state.quizIsGraded){
       alert("No retakes remaining for this quiz right now. You can keep practicing the same settings, or ask your teacher for another attempt.");
     }
@@ -1957,17 +1976,6 @@ function weightForQKey(qKey){
   const acc = stats.correct / stats.answered;
   const BOOST = 0.08; // a note the student always misses appears only ~8% more often than one they always get right — everything still shows up close to evenly
   return 1 + BOOST*(1-acc);
-}
-function weightedPick(pool, qKeyFn){
-  if(!state.focusModeActive) return pool[Math.floor(Math.random()*pool.length)];
-  const weights = pool.map(item=>weightForQKey(qKeyFn(item)));
-  const total = weights.reduce((a,b)=>a+b,0);
-  let r = Math.random()*total;
-  for(let i=0;i<pool.length;i++){
-    r -= weights[i];
-    if(r <= 0) return pool[i];
-  }
-  return pool[pool.length-1];
 }
 async function aggregateRecentResponses(since){
   const snap = await db.collection("students").doc(state.username).collection("responses")
@@ -2730,14 +2738,13 @@ async function recordQuizAttempt(quizId, score, total){
     await resultRef.update({ attempts: FV.arrayUnion(attempt) });
   }
 }
-async function getQuizAttemptsUsed(quizId){
+// Used and allowed attempts both live on the same results doc — fetch it once
+// per quiz instead of the two separate round trips this used to make.
+async function getQuizAttemptsInfo(quizId){
   const snap = await db.collection("quizzes").doc(quizId).collection("results").doc(state.username).get();
-  return snap.exists ? (snap.data().attempts||[]).length : 0;
-}
-async function getQuizAttemptsAllowed(quizId){
-  const snap = await db.collection("quizzes").doc(quizId).collection("results").doc(state.username).get();
+  const used = snap.exists ? (snap.data().attempts||[]).length : 0;
   const granted = snap.exists ? (snap.data().retakesGranted||0) : 0;
-  return 2 + granted;
+  return { used, allowed: 2 + granted };
 }
 
 /* ================================================================
@@ -2897,19 +2904,24 @@ async function checkForActiveQuiz(){
       return;
     }
 
-    for(const target of targets){
+    // Each quiz's attempts info is an independent read — fetch them all
+    // concurrently instead of one at a time.
+    const infos = await Promise.all(targets.map(t=>getQuizAttemptsInfo(t.id)));
+    for(let i=0;i<targets.length;i++){
+      const target = targets[i];
+      const info = infos[i];
       const closeAt = target.closeAt ? new Date(target.closeAt) : null;
       const pastClose = !!(closeAt && now > closeAt);
 
-      let attemptsUsed = await getQuizAttemptsUsed(target.id);
+      let attemptsUsed = info.used;
       let attemptsAllowed, isLateWindow = false;
       if(!pastClose){
-        attemptsAllowed = await getQuizAttemptsAllowed(target.id);
+        attemptsAllowed = info.allowed;
       } else if(attemptsUsed === 0){
         attemptsAllowed = 1;
         isLateWindow = true;
       } else {
-        attemptsAllowed = await getQuizAttemptsAllowed(target.id);
+        attemptsAllowed = info.allowed;
       }
       const isGraded = attemptsUsed < attemptsAllowed;
       state.activeQuizzes.push({quiz: target, isGraded, isLateWindow, attemptsUsed, attemptsAllowed});
