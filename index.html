@@ -187,7 +187,14 @@
   .setup-main{display:flex;flex-direction:column;align-items:center;flex:1;max-width:1060px;}
   .setup-side{width:190px;flex-shrink:0;display:flex;flex-direction:column;gap:10px;padding-top:64px;}
   .corner-actions{position:fixed;top:14px;right:16px;z-index:50;}
-  body.sim-active .corner-actions{top:52px;}
+  /* The banner's real height varies (its title + two dropdowns + Exit
+     button wrap onto 2-3 lines on a narrow phone screen instead of the one
+     line it stays on desktop), so a hardcoded offset here left the banner
+     covering the Back button and the top of the screen on phones. --sim-
+     banner-h is measured and kept in sync with the banner's actual
+     rendered height by updateSimBannerOffset() below. */
+  body.sim-active .corner-actions{top:calc(var(--sim-banner-h, 38px) + 14px);}
+  body.sim-active .screen{padding-top:calc(28px + var(--sim-banner-h, 38px));}
   .quiz-cta{width:100%;max-width:420px;background:linear-gradient(135deg,var(--ink),#3a3745);color:#fff;padding:16px 18px;margin-bottom:16px;border-radius:var(--radius);box-shadow:0 8px 24px rgba(35,34,43,0.2);}
   .setup-side .quiz-cta{max-width:none;padding:12px 14px;margin-bottom:0;}
   .setup-side .quiz-cta .qt{font-size:14px;}
@@ -1368,6 +1375,7 @@ document.getElementById("startStudentViewBtn").addEventListener("click", async (
   document.getElementById("studentViewModalBack").classList.remove("active");
   document.getElementById("simBanner").style.display = "flex";
   document.body.classList.add("sim-active");
+  updateSimBannerOffset();
   document.getElementById("simGradeSwitch").value = String(grade);
   document.getElementById("simInstrumentSwitch").value = instrument;
   document.getElementById("setupGreeting").textContent = "Hi, Preview";
@@ -1376,6 +1384,15 @@ document.getElementById("startStudentViewBtn").addEventListener("click", async (
   await checkForActiveQuiz();
   showScreen("setupScreen");
 });
+// The banner can wrap onto 2-3 lines on a narrow phone screen instead of
+// staying on the single line it fits on desktop; keep the layout's reserved
+// space matched to how tall it actually rendered, not a guess.
+function updateSimBannerOffset(){
+  const banner = document.getElementById("simBanner");
+  const h = document.body.classList.contains("sim-active") ? banner.offsetHeight : 0;
+  document.documentElement.style.setProperty("--sim-banner-h", h + "px");
+}
+window.addEventListener("resize", ()=>{ if(document.body.classList.contains("sim-active")) updateSimBannerOffset(); });
 async function applySimSwitch(){
   state.grade = parseInt(document.getElementById("simGradeSwitch").value,10);
   const instrument = document.getElementById("simInstrumentSwitch").value;
@@ -1393,6 +1410,7 @@ document.getElementById("exitSimBtn").addEventListener("click", ()=>{
   state.isSimulation = false;
   document.getElementById("simBanner").style.display = "none";
   document.body.classList.remove("sim-active");
+  updateSimBannerOffset();
   showScreen("teacherScreen");
 });
 
@@ -1406,7 +1424,8 @@ function logout(){
   if(state.isSimulation){
     state.isSimulation = false;
     document.getElementById("simBanner").style.display = "none";
-  document.body.classList.remove("sim-active");
+    document.body.classList.remove("sim-active");
+    updateSimBannerOffset();
     showScreen("teacherScreen");
     return;
   }
