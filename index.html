@@ -2,9 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
 <title>Brass Training</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
+<!-- PWA / "Add to Home Screen" support -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#b3131e">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Brass Training">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -363,6 +371,10 @@
   <div class="setup-layout">
     <div class="setup-main">
       <div class="brand"><div class="clefs">𝄞 𝄢</div><div><h1 id="setupGreeting">Welcome</h1><div class="sub">Choose what to practice</div></div></div>
+      <div class="info-heading" style="margin:2px 0 8px;"><span class="small" style="font-weight:700;">How to build a practice session</span><button type="button" class="info-btn" data-info="info-builder-guide">ⓘ</button></div>
+      <div class="info-box" id="info-builder-guide" style="display:none;margin-bottom:10px;">
+        1. Pick your instrument. 2. Pick an exercise on the left. 3. On the right, check the note range, pitches, and difficulty — your teacher may have already set these for you. 4. Set how many questions or minutes you want (0 means no limit). 5. Hit Start. That's it — come back here any time to switch exercises or instruments.
+      </div>
 
       <div class="card" style="width:95%;max-width:1040px;">
         <div class="builder-cols">
@@ -378,6 +390,7 @@
               <option value="trumpet">Trumpet (B♭)</option>
               <option value="frenchhorn">French Horn</option>
             </select>
+            <p class="small" style="margin:4px 0 0;">Which instrument you're practicing on right now — doesn't have to match what you actually play.</p>
             <div class="small" id="instrumentHint" style="margin-top:6px;"></div>
 
             <div class="rule"></div>
@@ -411,12 +424,15 @@
               <div class="checkline" id="helpersRow" style="margin-top:2px;display:none;">
                 <input type="checkbox" id="helpersToggle"> <label style="margin:0;" for="helpersToggle">Helpers (line &amp; space letter labels) — practice only, never shown in quizzes</label>
               </div>
+              <p class="small" id="helpersHint" style="display:none;margin:2px 0 8px;">Turn this on for a little extra help reading the staff while you're still learning it.</p>
 
               <div class="field-title"><label>Note range</label></div>
+              <p class="small" style="margin-top:-2px;">Drag the two handles to set the lowest and highest note you'll be asked about.</p>
               <div class="staff-slider-wrap"><div id="rangeSliderSvg"></div></div>
               <div class="staff-slider-readout" id="rangeReadout"></div>
 
               <div class="field-title"><label>Difficulty</label></div>
+              <p class="small" style="margin-top:-2px;">Level 1 = natural notes only. Level 2 adds one kind of sharp or flat. Level 3 adds both.</p>
               <select id="difficultyLevel">
                 <option value="1">Level 1 — Naturals only</option>
                 <option value="2">Level 2 — Naturals + one accidental</option>
@@ -426,17 +442,19 @@
                 <label class="checkline"><input type="radio" name="level2choice" value="sharp" checked> Sharps</label>
                 <label class="checkline"><input type="radio" name="level2choice" value="flat"> Flats</label>
               </div>
+              <p class="small" style="margin:6px 0 0;">Uncheck any specific note below to leave it out of practice entirely.</p>
               <div class="pitch-grid" id="pitchGrid"></div>
             </div>
 
             <div id="keysigSettings" style="display:none;">
               <div class="field-title"><label>Key signatures available</label></div>
-              <p class="small">Concert key shown first; transposing instruments also show what it's written as.</p>
+              <p class="small">Check off which key signatures you want to be quizzed on. Concert key shown first; transposing instruments also show what it's written as.</p>
               <div class="pitch-grid" id="keysigSettingsGrid" style="grid-template-columns:repeat(3,1fr);"></div>
             </div>
 
             <div id="constructionSettings" style="display:none;">
               <div class="field-title"><label>Clef</label></div>
+              <p class="small" style="margin-top:-2px;">Which staff you'll build notes on — pick whichever your music actually uses.</p>
               <div class="checkline-row">
                 <label class="checkline"><input type="radio" name="constructionClef" value="treble"> Treble</label>
                 <label class="checkline"><input type="radio" name="constructionClef" value="bass"> Bass</label>
@@ -453,6 +471,7 @@
                 <label class="checkline"><input type="radio" name="constructionLevel2choice" value="flat"> Flats</label>
               </div>
               <div class="field-title"><label>Key signatures shown on the staff</label></div>
+              <p class="small" style="margin-top:-2px;">Just for reading practice — this doesn't change what counts as a correct answer.</p>
               <div class="pitch-grid" id="constructionKeysigGrid" style="grid-template-columns:repeat(3,1fr);"></div>
             </div>
 
@@ -464,6 +483,7 @@
               <label style="margin:0;">Round minutes (0 = unlimited)</label>
               <input type="number" id="roundTimeSelect" min="0" value="0" style="width:90px;">
             </div>
+            <p class="small" style="margin-top:-4px;">Whichever limit hits first ends the round — leave one or both at 0 to practice with no cutoff.</p>
 
             <button class="full" id="startBtn">Start practice</button>
           </div>
@@ -895,7 +915,6 @@
   <div class="drawer" style="max-width:1240px;width:97%;max-height:90vh;overflow-y:auto;padding-top:0;">
     <div id="focusStickyHeader" style="position:sticky;top:0;z-index:5;background:var(--paper);margin:0 -26px;padding:26px 26px 10px;border-bottom:1px solid var(--line);box-shadow:0 4px 10px rgba(0,0,0,0.06);">
       <div class="row" style="justify-content:space-between;"><h2 style="margin:0;">Focus Settings</h2><button class="ghost" id="closeFocusModal">Close</button></div>
-      <p class="small" style="margin:6px 0 0;">Set exactly what a grade, instrument, or individual student should practice — this preloads automatically when they open their practice builder, and resets to it every time they come back, even if they nudge it during a session.</p>
       <div class="tabs" style="margin-top:10px;margin-bottom:0;">
         <button class="tab-btn active" data-focustab="noteid">Note ID</button>
         <button class="tab-btn" data-focustab="position">Position ID</button>
@@ -903,6 +922,7 @@
         <button class="tab-btn" data-focustab="construction">Note Construction</button>
       </div>
     </div>
+    <p class="small" style="margin:10px 0;">Set exactly what a grade, instrument, or individual student should practice — this preloads automatically when they open their practice builder, and resets to it every time they come back, even if they nudge it during a session.</p>
     <div id="focusTabBody"></div>
   </div>
 </div>
@@ -1024,7 +1044,7 @@ const FV = firebase.firestore.FieldValue;
    technique), with automatic fallback to F-side on the handful of
    very low notes the Bb side can't physically reach.
    ================================================================ */
-const FINGERING_DATA = {"trombone":{"clef":"bass","loMidi":40,"hiMidi":70,"chart":{"E2":7,"F2":6,"F#2":5,"G2":4,"G#2":3,"A2":2,"A#2":1,"B2":7,"C3":6,"C#3":5,"D3":4,"D#3":3,"E3":2,"F3":1,"F#3":5,"G3":4,"G#3":3,"A3":2,"A#3":1,"B3":4,"C4":3,"C#4":2,"D4":1,"D#4":3,"E4":2,"F4":1,"F#4":3,"G4":2,"G#4":1,"A4":2,"A#4":1}},"baritone":{"clef":"bass","loMidi":40,"hiMidi":70,"chart":{"E2":{"v1":1,"v2":1,"v3":1},"F2":{"v1":1,"v2":0,"v3":1},"F#2":{"v1":0,"v2":1,"v3":1},"G2":{"v1":1,"v2":1,"v3":0},"G#2":{"v1":1,"v2":0,"v3":0},"A2":{"v1":0,"v2":1,"v3":0},"A#2":{"v1":0,"v2":0,"v3":0},"B2":{"v1":1,"v2":1,"v3":1},"C3":{"v1":1,"v2":0,"v3":1},"C#3":{"v1":0,"v2":1,"v3":1},"D3":{"v1":1,"v2":1,"v3":0},"D#3":{"v1":1,"v2":0,"v3":0},"E3":{"v1":0,"v2":1,"v3":0},"F3":{"v1":0,"v2":0,"v3":0},"F#3":{"v1":0,"v2":1,"v3":1},"G3":{"v1":1,"v2":1,"v3":0},"G#3":{"v1":1,"v2":0,"v3":0},"A3":{"v1":0,"v2":1,"v3":0},"A#3":{"v1":0,"v2":0,"v3":0},"B3":{"v1":1,"v2":1,"v3":0},"C4":{"v1":1,"v2":0,"v3":0},"C#4":{"v1":0,"v2":1,"v3":0},"D4":{"v1":0,"v2":0,"v3":0},"D#4":{"v1":1,"v2":0,"v3":0},"E4":{"v1":0,"v2":1,"v3":0},"F4":{"v1":0,"v2":0,"v3":0},"F#4":{"v1":1,"v2":0,"v3":0},"G4":{"v1":0,"v2":1,"v3":0},"G#4":{"v1":0,"v2":0,"v3":0},"A4":{"v1":0,"v2":1,"v3":0},"A#4":{"v1":0,"v2":0,"v3":0}}},"tuba":{"clef":"bass","loMidi":28,"hiMidi":58,"chart":{"E1":{"v1":1,"v2":1,"v3":1},"F1":{"v1":1,"v2":0,"v3":1},"F#1":{"v1":0,"v2":1,"v3":1},"G1":{"v1":1,"v2":1,"v3":0},"G#1":{"v1":1,"v2":0,"v3":0},"A1":{"v1":0,"v2":1,"v3":0},"A#1":{"v1":0,"v2":0,"v3":0},"B1":{"v1":1,"v2":1,"v3":1},"C2":{"v1":1,"v2":0,"v3":1},"C#2":{"v1":0,"v2":1,"v3":1},"D2":{"v1":1,"v2":1,"v3":0},"D#2":{"v1":1,"v2":0,"v3":0},"E2":{"v1":0,"v2":1,"v3":0},"F2":{"v1":0,"v2":0,"v3":0},"F#2":{"v1":0,"v2":1,"v3":1},"G2":{"v1":1,"v2":1,"v3":0},"G#2":{"v1":1,"v2":0,"v3":0},"A2":{"v1":0,"v2":1,"v3":0},"A#2":{"v1":0,"v2":0,"v3":0},"B2":{"v1":1,"v2":1,"v3":0},"C3":{"v1":1,"v2":0,"v3":0},"C#3":{"v1":0,"v2":1,"v3":0},"D3":{"v1":0,"v2":0,"v3":0},"D#3":{"v1":1,"v2":0,"v3":0},"E3":{"v1":0,"v2":1,"v3":0},"F3":{"v1":0,"v2":0,"v3":0},"F#3":{"v1":1,"v2":0,"v3":0},"G3":{"v1":0,"v2":1,"v3":0},"G#3":{"v1":0,"v2":0,"v3":0},"A3":{"v1":0,"v2":1,"v3":0},"A#3":{"v1":0,"v2":0,"v3":0}}},"trumpet":{"clef":"treble","loMidi":54,"hiMidi":84,"chart":{"F#3":{"v1":1,"v2":1,"v3":1},"G3":{"v1":1,"v2":0,"v3":1},"G#3":{"v1":0,"v2":1,"v3":1},"A3":{"v1":1,"v2":1,"v3":0},"A#3":{"v1":1,"v2":0,"v3":0},"B3":{"v1":0,"v2":1,"v3":0},"C4":{"v1":0,"v2":0,"v3":0},"C#4":{"v1":1,"v2":1,"v3":1},"D4":{"v1":1,"v2":0,"v3":1},"D#4":{"v1":0,"v2":1,"v3":1},"E4":{"v1":1,"v2":1,"v3":0},"F4":{"v1":1,"v2":0,"v3":0},"F#4":{"v1":0,"v2":1,"v3":0},"G4":{"v1":0,"v2":0,"v3":0},"G#4":{"v1":0,"v2":1,"v3":1},"A4":{"v1":1,"v2":1,"v3":0},"A#4":{"v1":1,"v2":0,"v3":0},"B4":{"v1":0,"v2":1,"v3":0},"C5":{"v1":0,"v2":0,"v3":0},"C#5":{"v1":1,"v2":1,"v3":0},"D5":{"v1":1,"v2":0,"v3":0},"D#5":{"v1":0,"v2":1,"v3":0},"E5":{"v1":0,"v2":0,"v3":0},"F5":{"v1":1,"v2":0,"v3":0},"F#5":{"v1":0,"v2":1,"v3":0},"G5":{"v1":0,"v2":0,"v3":0},"G#5":{"v1":1,"v2":0,"v3":0},"A5":{"v1":0,"v2":1,"v3":0},"A#5":{"v1":0,"v2":0,"v3":0},"B5":{"v1":0,"v2":1,"v3":0},"C6":{"v1":0,"v2":0,"v3":0}}},"frenchhorn":{"clef":"treble","loMidi":53,"hiMidi":84,"chart":{"F3":{"v1":0,"v2":0,"v3":0,"trigger":true},"F#3":{"v1":1,"v2":1,"v3":1,"trigger":true},"G3":{"v1":1,"v2":0,"v3":1,"trigger":true},"G#3":{"v1":0,"v2":1,"v3":1,"trigger":true},"A3":{"v1":1,"v2":1,"v3":0,"trigger":true},"A#3":{"v1":1,"v2":0,"v3":0,"trigger":true},"B3":{"v1":0,"v2":1,"v3":0,"trigger":true},"C4":{"v1":0,"v2":0,"v3":0,"trigger":false},"C#4":{"v1":1,"v2":1,"v3":0,"trigger":false},"D4":{"v1":1,"v2":0,"v3":0,"trigger":false},"D#4":{"v1":0,"v2":1,"v3":0,"trigger":false},"E4":{"v1":0,"v2":0,"v3":0,"trigger":false},"F4":{"v1":1,"v2":0,"v3":0,"trigger":false},"F#4":{"v1":0,"v2":1,"v3":0,"trigger":false},"G4":{"v1":0,"v2":0,"v3":0,"trigger":false},"G#4":{"v1":0,"v2":1,"v3":1,"trigger":true},"A4":{"v1":1,"v2":1,"v3":0,"trigger":true},"A#4":{"v1":1,"v2":0,"v3":0,"trigger":true},"B4":{"v1":0,"v2":1,"v3":0,"trigger":true},"C5":{"v1":0,"v2":0,"v3":0,"trigger":true},"C#5":{"v1":1,"v2":1,"v3":0,"trigger":true},"D5":{"v1":1,"v2":0,"v3":0,"trigger":true},"D#5":{"v1":0,"v2":1,"v3":0,"trigger":true},"E5":{"v1":0,"v2":0,"v3":0,"trigger":true},"F5":{"v1":1,"v2":0,"v3":0,"trigger":true},"F#5":{"v1":0,"v2":1,"v3":0,"trigger":true},"G5":{"v1":0,"v2":0,"v3":0,"trigger":true},"G#5":{"v1":0,"v2":1,"v3":1,"trigger":true},"A5":{"v1":1,"v2":1,"v3":0,"trigger":true},"A#5":{"v1":1,"v2":0,"v3":0,"trigger":true},"B5":{"v1":0,"v2":1,"v3":0,"trigger":true},"C6":{"v1":0,"v2":0,"v3":0,"trigger":true}}}};
+const FINGERING_DATA = {"trombone":{"clef":"bass","loMidi":40,"hiMidi":70,"chart":{"E2":7,"F2":6,"F#2":5,"G2":4,"G#2":3,"A2":2,"A#2":1,"B2":7,"C3":6,"C#3":5,"D3":4,"D#3":3,"E3":2,"F3":1,"F#3":5,"G3":4,"G#3":3,"A3":2,"A#3":1,"B3":4,"C4":3,"C#4":2,"D4":1,"D#4":3,"E4":2,"F4":1,"F#4":3,"G4":2,"G#4":1,"A4":2,"A#4":1}},"baritone":{"clef":"bass","loMidi":40,"hiMidi":70,"chart":{"E2":{"v1":1,"v2":1,"v3":1},"F2":{"v1":1,"v2":0,"v3":1},"F#2":{"v1":0,"v2":1,"v3":1},"G2":{"v1":1,"v2":1,"v3":0},"G#2":{"v1":1,"v2":0,"v3":0},"A2":{"v1":0,"v2":1,"v3":0},"A#2":{"v1":0,"v2":0,"v3":0},"B2":{"v1":1,"v2":1,"v3":1},"C3":{"v1":1,"v2":0,"v3":1},"C#3":{"v1":0,"v2":1,"v3":1},"D3":{"v1":1,"v2":1,"v3":0},"D#3":{"v1":1,"v2":0,"v3":0},"E3":{"v1":0,"v2":1,"v3":0},"F3":{"v1":0,"v2":0,"v3":0},"F#3":{"v1":0,"v2":1,"v3":1},"G3":{"v1":1,"v2":1,"v3":0},"G#3":{"v1":1,"v2":0,"v3":0},"A3":{"v1":0,"v2":1,"v3":0},"A#3":{"v1":0,"v2":0,"v3":0},"B3":{"v1":1,"v2":1,"v3":0},"C4":{"v1":1,"v2":0,"v3":0},"C#4":{"v1":0,"v2":1,"v3":0},"D4":{"v1":0,"v2":0,"v3":0},"D#4":{"v1":1,"v2":0,"v3":0},"E4":{"v1":0,"v2":1,"v3":0},"F4":{"v1":0,"v2":0,"v3":0},"F#4":{"v1":1,"v2":0,"v3":0},"G4":{"v1":0,"v2":1,"v3":0},"G#4":{"v1":0,"v2":0,"v3":0},"A4":{"v1":0,"v2":1,"v3":0},"A#4":{"v1":0,"v2":0,"v3":0}}},"tuba":{"clef":"bass","loMidi":28,"hiMidi":58,"chart":{"E1":{"v1":1,"v2":1,"v3":1},"F1":{"v1":1,"v2":0,"v3":1},"F#1":{"v1":0,"v2":1,"v3":1},"G1":{"v1":1,"v2":1,"v3":0},"G#1":{"v1":1,"v2":0,"v3":0},"A1":{"v1":0,"v2":1,"v3":0},"A#1":{"v1":0,"v2":0,"v3":0},"B1":{"v1":1,"v2":1,"v3":1},"C2":{"v1":1,"v2":0,"v3":1},"C#2":{"v1":0,"v2":1,"v3":1},"D2":{"v1":1,"v2":1,"v3":0},"D#2":{"v1":1,"v2":0,"v3":0},"E2":{"v1":0,"v2":1,"v3":0},"F2":{"v1":0,"v2":0,"v3":0},"F#2":{"v1":0,"v2":1,"v3":1},"G2":{"v1":1,"v2":1,"v3":0},"G#2":{"v1":1,"v2":0,"v3":0},"A2":{"v1":0,"v2":1,"v3":0},"A#2":{"v1":0,"v2":0,"v3":0},"B2":{"v1":1,"v2":1,"v3":0},"C3":{"v1":1,"v2":0,"v3":0},"C#3":{"v1":0,"v2":1,"v3":0},"D3":{"v1":0,"v2":0,"v3":0},"D#3":{"v1":1,"v2":0,"v3":0},"E3":{"v1":0,"v2":1,"v3":0},"F3":{"v1":0,"v2":0,"v3":0},"F#3":{"v1":1,"v2":0,"v3":0},"G3":{"v1":0,"v2":1,"v3":0},"G#3":{"v1":0,"v2":0,"v3":0},"A3":{"v1":0,"v2":1,"v3":0},"A#3":{"v1":0,"v2":0,"v3":0}}},"trumpet":{"clef":"treble","loMidi":54,"hiMidi":84,"chart":{"F#3":{"v1":1,"v2":1,"v3":1},"G3":{"v1":1,"v2":0,"v3":1},"G#3":{"v1":0,"v2":1,"v3":1},"A3":{"v1":1,"v2":1,"v3":0},"A#3":{"v1":1,"v2":0,"v3":0},"B3":{"v1":0,"v2":1,"v3":0},"C4":{"v1":0,"v2":0,"v3":0},"C#4":{"v1":1,"v2":1,"v3":1},"D4":{"v1":1,"v2":0,"v3":1},"D#4":{"v1":0,"v2":1,"v3":1},"E4":{"v1":1,"v2":1,"v3":0},"F4":{"v1":1,"v2":0,"v3":0},"F#4":{"v1":0,"v2":1,"v3":0},"G4":{"v1":0,"v2":0,"v3":0},"G#4":{"v1":0,"v2":1,"v3":1},"A4":{"v1":1,"v2":1,"v3":0},"A#4":{"v1":1,"v2":0,"v3":0},"B4":{"v1":0,"v2":1,"v3":0},"C5":{"v1":0,"v2":0,"v3":0},"C#5":{"v1":1,"v2":1,"v3":0},"D5":{"v1":1,"v2":0,"v3":0},"D#5":{"v1":0,"v2":1,"v3":0},"E5":{"v1":0,"v2":0,"v3":0},"F5":{"v1":1,"v2":0,"v3":0},"F#5":{"v1":0,"v2":1,"v3":0},"G5":{"v1":0,"v2":0,"v3":0},"G#5":{"v1":1,"v2":0,"v3":0},"A5":{"v1":0,"v2":1,"v3":0},"A#5":{"v1":0,"v2":0,"v3":0},"B5":{"v1":0,"v2":1,"v3":0},"C6":{"v1":0,"v2":0,"v3":0}}},"frenchhorn":{"clef":"treble","loMidi":53,"hiMidi":84,"chart":{"F3":{"v1":0,"v2":0,"v3":0,"trigger":true},"F#3":{"v1":1,"v2":1,"v3":1,"trigger":true},"G3":{"v1":1,"v2":0,"v3":1,"trigger":true},"G#3":{"v1":0,"v2":1,"v3":1,"trigger":true},"A3":{"v1":1,"v2":1,"v3":0,"trigger":true},"A#3":{"v1":1,"v2":0,"v3":0,"trigger":true},"B3":{"v1":0,"v2":1,"v3":0,"trigger":true},"C4":{"v1":0,"v2":0,"v3":0,"trigger":false},"C#4":{"v1":1,"v2":1,"v3":0,"trigger":false},"D4":{"v1":1,"v2":0,"v3":0,"trigger":false},"D#4":{"v1":0,"v2":1,"v3":0,"trigger":false},"E4":{"v1":0,"v2":0,"v3":0,"trigger":false},"F4":{"v1":1,"v2":0,"v3":0,"trigger":false},"F#4":{"v1":0,"v2":1,"v3":0,"trigger":false},"G4":{"v1":0,"v2":0,"v3":0,"trigger":false},"G#4":{"v1":0,"v2":1,"v3":1,"trigger":true},"A4":{"v1":1,"v2":1,"v3":0,"trigger":true},"A#4":{"v1":1,"v2":0,"v3":0,"trigger":true},"B4":{"v1":0,"v2":1,"v3":0,"trigger":true},"C5":{"v1":0,"v2":0,"v3":0,"trigger":true},"C#5":{"v1":1,"v2":1,"v3":0,"trigger":true},"D5":{"v1":1,"v2":0,"v3":0,"trigger":true},"D#5":{"v1":0,"v2":1,"v3":0,"trigger":true},"E5":{"v1":0,"v2":0,"v3":0,"trigger":true},"F5":{"v1":0,"v2":0,"v3":0,"trigger":1},"F#5":{"v1":0,"v2":1,"v3":0,"trigger":true},"G5":{"v1":0,"v2":0,"v3":0,"trigger":true},"G#5":{"v1":0,"v2":1,"v3":1,"trigger":true},"A5":{"v1":1,"v2":1,"v3":0,"trigger":true},"A#5":{"v1":1,"v2":0,"v3":0,"trigger":true},"B5":{"v1":0,"v2":1,"v3":0,"trigger":true},"C6":{"v1":0,"v2":0,"v3":0,"trigger":true}}}};
 
 const INSTRUMENTS = {
   trombone:   {label:"Trombone",     kind:"position"},
@@ -1740,6 +1760,7 @@ document.getElementById("modeGrid").addEventListener("click", e=>{
   btn.classList.add("selected");
   state.mode = btn.dataset.mode;
   document.getElementById("helpersRow").style.display = (state.mode === "noteid" && state.helpersAllowed !== false) ? "flex" : "none";
+  document.getElementById("helpersHint").style.display = (state.mode === "noteid" && state.helpersAllowed !== false) ? "block" : "none";
   showModeSettingsPanel();
 });
 function showModeSettingsPanel(){
@@ -1810,6 +1831,7 @@ async function resetSetupScreen(){
   state.constructionKeySignaturePool = {};
   document.querySelectorAll(".mode-btn").forEach(b=>b.classList.remove("selected"));
   document.getElementById("helpersRow").style.display = "none";
+  document.getElementById("helpersHint").style.display = "none";
   document.getElementById("helpersToggle").checked = false;
   showModeSettingsPanel();
   loadInstrumentSettingsIntoUI();
@@ -1974,8 +1996,31 @@ async function loadWeightData(exerciseType){
   }catch(err){ console.error("Couldn't load weighting data", err); state.weightData = {}; }
 }
 
+// Shuffle-bag draw: every enabled note is guaranteed to appear once before
+// any note repeats (instead of pure random-each-time, which could statistically
+// skip a note for a long stretch or repeat one back-to-back). When Focus Mode's
+// adaptive weighting says a note is a weak spot, it's added to the bag twice
+// for that revolution instead of once, so it shows up more often without ever
+// crowding out the rest of the set.
+function drawFromBag(bagKey, pool, qKeyFn){
+  if(!state.bags) state.bags = {};
+  if(!state.bags[bagKey] || state.bags[bagKey].length === 0){
+    let fresh = pool.slice();
+    if(state.focusModeActive){
+      pool.forEach(item=>{
+        if(weightForQKey(qKeyFn(item)) > 1) fresh.push(item);
+      });
+    }
+    for(let i=fresh.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      const tmp = fresh[i]; fresh[i]=fresh[j]; fresh[j]=tmp;
+    }
+    state.bags[bagKey] = fresh;
+  }
+  return state.bags[bagKey].shift();
+}
 function buildNoteIdQuestion(pool){
-  const m = weightedPick(pool, mm=>"noteid_"+state.instrument+"_"+chartKey(mm));
+  const m = drawFromBag("noteid_"+state.instrument, pool, mm=>"noteid_"+state.instrument+"_"+chartKey(mm));
   const spelling = spellFor(m);
   return {
     exerciseType:"noteid", instrument: state.instrument,
@@ -2366,6 +2411,7 @@ function valvesEqual(a,b){
 }
 
 function startPractice(){
+  state.bags = {};
   document.getElementById("practiceModeLabel").textContent = MODE_LABELS[state.mode] + " — " + currentInstrument().label;
   document.getElementById("quizBanner").style.display = state.quizId ? "block" : "none";
   if(state.quizId){

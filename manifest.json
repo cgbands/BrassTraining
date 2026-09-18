@@ -1,0 +1,16 @@
+{
+  "name": "Brass Training",
+  "short_name": "Brass Training",
+  "description": "Band practice and quiz app for Note ID, Position ID, Key Signature ID, and Note Construction.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f4f1fb",
+  "theme_color": "#b3131e",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
