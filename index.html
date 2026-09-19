@@ -4544,12 +4544,12 @@ function renderResourceHideByGradeChecks(){
   const wholeGrades = restrictedGradeOptions ? restrictedGradeOptions.filter(g=>isWholeGradeForTeacher(g)) : [6,7,8];
   // Clickable toggle buttons (same look as the grade pickers elsewhere in
   // the app), not checkboxes — a red "selected" button means hidden.
-  // Every button reserves the same two-line shape (label, then a status
-  // line underneath) regardless of hidden state, so "Grade 7" doesn't wrap
-  // onto a second line and sit lower than "Grade 6"/"Grade 8" once its
-  // status text is appended.
+  // "Grade" and the number are forced onto separate lines with a <br> —
+  // relying on natural text wrap put "Grade 7" on one line (the digit "7"
+  // is narrower than "6"/"8" in this font, so it fit) while "Grade 6" and
+  // "Grade 8" wrapped, leaving 7 sitting higher than its neighbors.
   let html = `<div class="grade-pick">` + wholeGrades.map(g=>
-    `<button type="button" class="resourceHideGradeBtn ${hidden[g]?'selected':''}" data-grade="${g}">Grade ${g}<div class="small" style="margin-top:2px;visibility:${hidden[g]?'visible':'hidden'};">hidden</div></button>`
+    `<button type="button" class="resourceHideGradeBtn ${hidden[g]?'selected':''}" data-grade="${g}">Grade<br>${g}<div class="small" style="margin-top:2px;visibility:${hidden[g]?'visible':'hidden'};">hidden</div></button>`
   ).join("") + `</div>`;
   if(restrictedGradeOptions && restrictedGradeOptions.includes(6) && !wholeGrades.includes(6)){
     html += `<p class="small" style="width:100%;margin-top:6px;">Grade 6 isn't offered here since you only see part of it.</p>`;
