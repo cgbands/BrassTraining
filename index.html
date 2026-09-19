@@ -576,7 +576,7 @@
     </div>
     <p class="small" id="resourceViewerDesc" style="margin:6px 0;"></p>
     <p class="small" id="resourceViewerBlockedHint" style="display:none;margin:0 0 6px;color:var(--ink-soft);">If this doesn't load below, the site doesn't allow being shown inside another page — use "Open in new tab" instead.</p>
-    <iframe id="resourceViewerFrame" style="flex:1;width:100%;border:1px solid var(--line);border-radius:var(--radius-sm);background:#fff;" title="Resource content"></iframe>
+    <iframe id="resourceViewerFrame" style="flex:1;width:100%;border:1px solid var(--line);border-radius:var(--radius-sm);background:#fff;" title="Resource content" allow="autoplay; encrypted-media" allowfullscreen></iframe>
   </div>
 </div>
 
@@ -3171,7 +3171,9 @@ function toEmbeddableUrl(url){
     if(!videoId) return url;
     const start = u.searchParams.get("t") || u.searchParams.get("start");
     const startSeconds = start ? parseInt(start, 10) : 0;
-    return "https://www.youtube.com/embed/" + videoId + (startSeconds ? ("?start=" + startSeconds) : "");
+    const params = new URLSearchParams({autoplay: "1"});
+    if(startSeconds) params.set("start", String(startSeconds));
+    return "https://www.youtube.com/embed/" + videoId + "?" + params.toString();
   }catch(e){ return url; }
 }
 function openResourceViewer(r){
