@@ -861,10 +861,10 @@
             <input type="text" id="resourceUrl" placeholder="https://...">
             <p class="small" style="margin-top:2px;">For a pop-up preview to actually work, the link needs to be one the site allows embedding — a Google Drive "anyone with the link" file (using its /preview link), a YouTube embed link, or a PDF hosted somewhere that allows framing. Otherwise it still works, just opens in a new tab instead.</p>
 
-            <label for="resourceTypeSelect" style="margin-top:10px;">Type</label>
+            <label for="resourceTypeSelect" style="margin-top:10px;">Category</label>
             <select id="resourceTypeSelect"></select>
             <div class="row" id="resourceNewTypeRow" style="display:none;margin-top:6px;gap:8px;">
-              <input type="text" id="resourceNewTypeInput" placeholder="New type name" style="flex:1;">
+              <input type="text" id="resourceNewTypeInput" placeholder="New category name" style="flex:1;">
               <button class="secondary small-btn" id="resourceNewTypeSave">Add</button>
               <button class="ghost small-btn" id="resourceNewTypeCancel">Cancel</button>
             </div>
@@ -872,7 +872,8 @@
 
             <div id="resourceGradeLockWrap"></div>
 
-            <div class="field-title"><label>Applies to — a student is matched if their grade OR instrument is checked</label></div>
+            <div class="field-title"><label>Applies to — a student needs BOTH a checked grade AND a checked instrument to be matched</label></div>
+            <p class="small" style="margin-top:-4px;">To reach a grade regardless of instrument, leave every instrument box checked (the default for a new resource).</p>
             <div id="resourceGradeChecks" class="checkline-row"></div>
             <div id="resourceInstChecks" class="checkline-row" style="margin-top:6px;"></div>
 
@@ -2946,9 +2947,10 @@ function resourceAppliesToStudent(r){
   const override = r.studentOverrides && r.studentOverrides[state.username];
   if(override && override.enabled === true) return true;
   if(override && override.enabled === false) return false;
-  if(r.grades && r.grades.includes(state.grade)) return true;
-  if(r.instruments && r.instruments.includes(state.primaryInstrument)) return true;
-  return false;
+  // Grade AND instrument, not OR — a resource needs both boxes checked to
+  // match anyone via grade/instrument rules; see resourceAppliesToStudentObj
+  // (teacher-side) for why this specific combination matters for Bolla.
+  return !!(r.grades && r.grades.includes(state.grade) && r.instruments && r.instruments.includes(state.primaryInstrument));
 }
 
 async function openResourcesScreen(){
@@ -3932,7 +3934,7 @@ function renderResourceTypeOptions(extraType){
   const cur = sel.value;
   const types = ["General", ...(state.resourceTypes||[])];
   if(extraType && !types.includes(extraType)) types.push(extraType);
-  sel.innerHTML = types.map(t=>`<option value="${t}">${t}</option>`).join("") + '<option value="__new__">+ Add new type…</option>';
+  sel.innerHTML = types.map(t=>`<option value="${t}">${t}</option>`).join("") + '<option value="__new__">+ Add new category…</option>';
   if(types.includes(cur)) sel.value = cur;
 }
 // "General" is always available and can't be removed — it's the fallback
@@ -3941,12 +3943,12 @@ function renderResourceTypeManageList(){
   const el = document.getElementById("resourceTypeManageList");
   const types = state.resourceTypes || [];
   if(!types.length){ el.innerHTML = ""; return; }
-  el.innerHTML = `<p class="small" style="margin:8px 0 4px;">Remove a type (existing resources keep showing it — this only affects new ones):</p>` +
+  el.innerHTML = `<p class="small" style="margin:8px 0 4px;">Remove a category (existing resources keep showing it — this only affects new ones):</p>` +
     types.map(t=>`<span class="checkline" style="display:inline-flex;align-items:center;margin:0 8px 6px 0;background:rgba(35,34,43,0.05);border-radius:8px;padding:2px 4px 2px 10px;">${t}<button type="button" class="ghost small-btn" data-remove-type="${t}" style="padding:2px 8px;margin-left:2px;color:var(--red-dark);">×</button></span>`).join("");
   el.querySelectorAll("[data-remove-type]").forEach(btn=>{
     btn.addEventListener("click", async ()=>{
       const t = btn.dataset.removeType;
-      if(!confirm(`Remove "${t}" from the type list? Resources already using it are unaffected — this only removes it as a choice for new ones.`)) return;
+      if(!confirm(`Remove "${t}" from the category list? Resources already using it are unaffected — this only removes it as a choice for new ones.`)) return;
       state.resourceTypes = (state.resourceTypes||[]).filter(x=>x!==t);
       await saveModesConfig();
       renderResourceTypeOptions();
@@ -4015,11 +4017,15 @@ function renderResourceTargeting(existing){
     const gradeOptions = restrictedGradeOptions ? [state.resourceWorkingGrade] : [6,7,8];
     gradesEl.innerHTML = gradeOptions.map(g=>`<label class="checkline"><input type="checkbox" class="resourceGrade" data-grade="${g}" ${existingGrades.includes(g)?"checked":""}> Grade ${g}</label>`).join("");
   } else {
-    gradesEl.innerHTML = `<p class="small">Grade ${state.resourceWorkingGrade} can't be targeted as a whole grade — only the instruments below.</p>`;
+    gradesEl.innerHTML = `<p class="small">Grade ${state.resourceWorkingGrade} is included automatically alongside whichever instruments you check below — there's no whole-grade box here since the rest of Grade ${state.resourceWorkingGrade} belongs to another teacher's roster.</p>`;
   }
   const instEl = document.getElementById("resourceInstChecks");
-  const existingInst = existing.instruments || [];
-  instEl.innerHTML = allowedInstruments.map(k=>`<label class="checkline"><input type="checkbox" class="resourceInst" data-inst="${k}" ${existingInst.includes(k)?"checked":""}> ${CATEGORY_LABELS[k]}</label>`).join("");
+  // A brand-new resource (existing.instruments is undefined, not just an
+  // empty array) starts with every allowed instrument checked, so "this
+  // grade, any instrument" is the default under the grade-AND-instrument
+  // rule below — uncheck any you don't want included.
+  const existingInst = existing.instruments !== undefined ? new Set(existing.instruments) : new Set(allowedInstruments);
+  instEl.innerHTML = allowedInstruments.map(k=>`<label class="checkline"><input type="checkbox" class="resourceInst" data-inst="${k}" ${existingInst.has(k)?"checked":""}> ${CATEGORY_LABELS[k]}</label>`).join("");
 }
 
 function renderResourceOverrideList(r){
@@ -4134,13 +4140,27 @@ document.getElementById("saveResourceBtn").addEventListener("click", async ()=>{
   const type = document.getElementById("resourceTypeSelect").value;
   const grades = Array.from(document.querySelectorAll(".resourceGrade:checked")).map(cb=>parseInt(cb.dataset.grade,10));
   const instruments = Array.from(document.querySelectorAll(".resourceInst:checked")).map(cb=>cb.dataset.inst);
+  // A restricted-view teacher building a resource for a "partial" grade
+  // (Bolla's 6th grade trumpet/horn slice) never sees a whole-grade
+  // checkbox for it — that grade is implied by the working-grade picker
+  // instead, so it has to be included here or the grade-AND-instrument
+  // match below would never fire for anyone.
+  const restrictedGradeOptions = restrictedGradeOptionsFor(state.teacherRestrictedView);
+  if(restrictedGradeOptions && !isWholeGradeForTeacher(state.resourceWorkingGrade) && !grades.includes(state.resourceWorkingGrade)){
+    grades.push(state.resourceWorkingGrade);
+  }
 
   if(!title){ msg.textContent = "Give it a title."; return; }
   if(!/^https?:\/\//i.test(url)){ msg.textContent = "Link needs to start with http:// or https://"; return; }
-  // No grade/instrument checked is allowed on purpose — a resource meant only
-  // for one specific student (via the override below) has to be saved with
-  // no broader targeting first, since overrides require the resource to
-  // already exist.
+  // Empty grades/instruments is allowed — a resource meant only for one
+  // specific student (via the override below) can be saved with no
+  // broader targeting, since overrides require the resource to already
+  // exist. But since it now takes BOTH a grade and an instrument to match
+  // anyone, warn if only one side got checked — that combination alone
+  // can never match a student either.
+  if((grades.length>0) !== (instruments.length>0)){
+    if(!confirm("You've checked a grade or an instrument but not both — since both are required to match a student, this won't reach anyone by grade/instrument yet (student overrides still work). Save anyway?")) return;
+  }
   msg.textContent = "";
 
   const payload = { title, description, url, type, grades, instruments, school: state.teacherSchool };
@@ -4172,16 +4192,22 @@ function renderResourceHideByGradeChecks(){
   const hidden = state.resourcesHiddenByGrade || {};
   const restrictedGradeOptions = restrictedGradeOptionsFor(state.teacherRestrictedView);
   const wholeGrades = restrictedGradeOptions ? restrictedGradeOptions.filter(g=>isWholeGradeForTeacher(g)) : [6,7,8];
-  let html = wholeGrades.map(g=>`<label class="checkline"><input type="checkbox" class="resourceHideGrade" data-grade="${g}" ${hidden[g]?"checked":""}> Grade ${g}</label>`).join("");
+  // Clickable toggle buttons (same look as the grade pickers elsewhere in
+  // the app), not checkboxes — a red "selected" button means hidden.
+  let html = `<div class="grade-pick">` + wholeGrades.map(g=>
+    `<button type="button" class="resourceHideGradeBtn ${hidden[g]?'selected':''}" data-grade="${g}">Grade ${g}${hidden[g]?' — hidden':''}</button>`
+  ).join("") + `</div>`;
   if(restrictedGradeOptions && restrictedGradeOptions.includes(6) && !wholeGrades.includes(6)){
     html += `<p class="small" style="width:100%;margin-top:6px;">Grade 6 isn't offered here since you only see part of it.</p>`;
   }
-  el.innerHTML = html || `<p class="small">None of your grades can be toggled here.</p>`;
-  el.querySelectorAll(".resourceHideGrade").forEach(cb=>{
-    cb.addEventListener("change", async ()=>{
+  el.innerHTML = wholeGrades.length ? html : `<p class="small">None of your grades can be toggled here.</p>`;
+  el.querySelectorAll(".resourceHideGradeBtn").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
       state.resourcesHiddenByGrade = state.resourcesHiddenByGrade || {};
-      state.resourcesHiddenByGrade[cb.dataset.grade] = cb.checked;
+      const g = btn.dataset.grade;
+      state.resourcesHiddenByGrade[g] = !state.resourcesHiddenByGrade[g];
       await saveModesConfig();
+      renderResourceHideByGradeChecks();
     });
   });
 }
@@ -4190,9 +4216,15 @@ function resourceAppliesToStudentObj(r, s){
   const override = r.studentOverrides && r.studentOverrides[s.id];
   if(override && override.enabled === true) return true;
   if(override && override.enabled === false) return false;
-  if(r.grades && r.grades.includes(s.grade)) return true;
-  if(r.instruments && r.instruments.includes(s.primaryInstrument)) return true;
-  return false;
+  // Grade AND instrument (not OR): this is what makes it safe for Bolla to
+  // target "Grade 6 + Trumpet/French Horn" at all. Under OR, checking grade
+  // 6 alone would reach every 6th grader regardless of instrument (leaking
+  // Trombone/Baritone/Tuba, which aren't his), and checking the instruments
+  // alone with no grade would reach that instrument in EVERY grade,
+  // including 8th grade — also outside his view. Requiring both narrows it
+  // to exactly his slice. See saveResourceBtn for how a partial grade's
+  // implied grade gets included in r.grades even without a visible checkbox.
+  return !!(r.grades && r.grades.includes(s.grade) && r.instruments && r.instruments.includes(s.primaryInstrument));
 }
 function populateResourceCheckStudentSelect(){
   document.getElementById("resourceCheckStudentSelect").innerHTML = '<option value="">Choose a student…</option>' +
@@ -4229,10 +4261,9 @@ async function loadResources(){
     visible.forEach(r=>{
       const item = document.createElement("div");
       item.className = "quiz-list-item";
-      const targetSummary = [
-        (r.grades||[]).length ? "grades " + r.grades.join(",") : null,
-        (r.instruments||[]).length ? (r.instruments||[]).map(k=>CATEGORY_LABELS[k]).join(", ") : null
-      ].filter(Boolean).join(" · ") || "no grade/instrument targets set";
+      const gradesTxt = (r.grades||[]).length ? "grades " + r.grades.join(",") : null;
+      const instTxt = (r.instruments||[]).length ? (r.instruments||[]).map(k=>CATEGORY_LABELS[k]).join(", ") : null;
+      const targetSummary = (gradesTxt && instTxt) ? `${gradesTxt} AND ${instTxt}` : (gradesTxt || instTxt || "no grade/instrument targets set — student overrides only");
       const overrideCount = Object.keys(r.studentOverrides||{}).length;
       item.innerHTML = `
         <div class="qname">${r.title} <span class="quiz-status ${r.archived?'closed':'open'}">${r.archived?'Hidden from students':'Visible'}</span></div>
