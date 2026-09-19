@@ -1587,7 +1587,8 @@ document.getElementById("startStudentViewBtn").addEventListener("click", async (
   const instrument = document.getElementById("svInstrumentSelect").value;
 
   state.isSimulation = true;
-  state.username = "__preview__";
+  state.username = "__preview__" + Date.now();
+  state.previewAttemptedQuizIds = [];
   state.displayName = "Preview Student";
   state.firstName = "Preview";
   state.grade = grade;
@@ -1596,6 +1597,18 @@ document.getElementById("startStudentViewBtn").addEventListener("click", async (
   state.instrument = instrument;
   state.savedSettingsByInstrument = {};
   state.focusOverride = {};
+
+  // Quizzes are gated by a real students/{id} doc (quiz-hidden flag,
+  // per-quiz attempt counts). Without one, a preview session can't take a
+  // quiz the same way a real student does, so we back it with a real doc
+  // — marked isPreviewStudent so it never shows up in teacher-facing lists
+  // — and remove it again when the teacher exits student view.
+  try{
+    await db.collection("students").doc(state.username).set({
+      displayName: state.displayName, grade: state.grade, school: state.school,
+      primaryInstrument: instrument, isPreviewStudent: true, createdAt: FV.serverTimestamp(),
+    });
+  }catch(e){ console.error("Failed to create temp preview student", e); }
 
   document.getElementById("studentViewModalBack").classList.remove("active");
   document.getElementById("simBanner").style.display = "flex";
@@ -1624,6 +1637,9 @@ async function applySimSwitch(){
   state.primaryInstrument = instrument;
   state.instrument = instrument;
   document.getElementById("instrumentSelect").value = instrument;
+  try{
+    await db.collection("students").doc(state.username).update({grade: state.grade, primaryInstrument: instrument});
+  }catch(e){ console.error("Failed to update temp preview student", e); }
   await loadModesConfig();
   await resetSetupScreen();
   await checkForActiveQuiz();
@@ -1631,13 +1647,31 @@ async function applySimSwitch(){
 }
 document.getElementById("simGradeSwitch").addEventListener("change", applySimSwitch);
 document.getElementById("simInstrumentSwitch").addEventListener("change", applySimSwitch);
-document.getElementById("exitSimBtn").addEventListener("click", ()=>{
+document.getElementById("exitSimBtn").addEventListener("click", async ()=>{
+  await cleanUpPreviewStudent();
   state.isSimulation = false;
   document.getElementById("simBanner").style.display = "none";
   document.body.classList.remove("sim-active");
   updateSimBannerOffset();
   showScreen("teacherScreen");
 });
+// Drops the temp student doc a "view as student" session created, plus any
+// quiz result docs it wrote while previewing, so nothing fake lingers once
+// the teacher is done. Best-effort — if the tab is just closed instead of
+// using Exit, the doc is left behind but is harmless: it's excluded from
+// every teacher-facing roster/list by its isPreviewStudent flag.
+async function cleanUpPreviewStudent(){
+  if(!state.username || !state.username.startsWith("__preview__")) return;
+  const previewId = state.username;
+  const attempted = state.previewAttemptedQuizIds || [];
+  try{
+    await Promise.all(attempted.map(quizId=>
+      db.collection("quizzes").doc(quizId).collection("results").doc(previewId).delete()
+    ));
+    await db.collection("students").doc(previewId).delete();
+  }catch(e){ console.error("Failed to clean up temp preview student", e); }
+  state.previewAttemptedQuizIds = [];
+}
 
 document.addEventListener("click", e=>{
   const btn = e.target.closest(".info-btn");
@@ -1647,6 +1681,7 @@ document.addEventListener("click", e=>{
 });
 function logout(){
   if(state.isSimulation){
+    cleanUpPreviewStudent();
     state.isSimulation = false;
     document.getElementById("simBanner").style.display = "none";
     document.body.classList.remove("sim-active");
@@ -2979,7 +3014,10 @@ async function recordResponse(q, chosen, isCorrect, quizId){
 }
 
 async function recordQuizAttempt(quizId, score, total){
-  if(state.isSimulation) return;
+  if(state.isSimulation){
+    state.previewAttemptedQuizIds = state.previewAttemptedQuizIds || [];
+    if(!state.previewAttemptedQuizIds.includes(quizId)) state.previewAttemptedQuizIds.push(quizId);
+  }
   const resultRef = db.collection("quizzes").doc(quizId).collection("results").doc(state.username);
   const snap = await resultRef.get();
   const attempt = { score, total, timestamp: new Date().toISOString(), late: !!state.quizIsLate };
@@ -3192,10 +3230,8 @@ async function checkForActiveQuiz(){
   listEl.innerHTML = "";
   state.activeQuizzes = [];
   try{
-    if(!state.isSimulation){
-      const studentSnap = await db.collection("students").doc(state.username).get();
-      if(studentSnap.exists && studentSnap.data().quizHidden) return;
-    }
+    const studentSnap = await db.collection("students").doc(state.username).get();
+    if(studentSnap.exists && studentSnap.data().quizHidden) return;
 
     const snap = await db.collection("quizzes").orderBy("openAt","desc").get();
     const now = new Date();
@@ -3324,7 +3360,11 @@ async function openDashboard(){
     await loadModesConfig();
     const studentSnap = await db.collection("students").orderBy("displayName").get();
     const students = [];
-    studentSnap.forEach(doc=> students.push(Object.assign({id:doc.id}, doc.data())));
+    studentSnap.forEach(doc=>{
+      const d = doc.data();
+      if(d.isPreviewStudent) return; // temp doc backing a teacher's "view as student" session — never a real student
+      students.push(Object.assign({id:doc.id}, d));
+    });
     const inSchool = s => (s.school || "MSN") === state.teacherSchool;
     const inView = s => inSchool(s) && studentMatchesRestrictedView(s, state.teacherRestrictedView);
     state.allStudents = students.filter(s=>!s.dropped && inView(s));
