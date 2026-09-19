@@ -1088,7 +1088,9 @@ const FV = firebase.firestore.FieldValue;
   let baseline = null;
   let notified = false;
   async function getVersionTag(){
-    const res = await fetch(location.pathname + "?_=" + Date.now(), {cache:"no-store"});
+    // HEAD, not GET — same ETag/Last-Modified headers to compare, without
+    // re-downloading the whole ~250KB file on every check.
+    const res = await fetch(location.pathname + "?_=" + Date.now(), {method:"HEAD", cache:"no-store"});
     return res.headers.get("ETag") || res.headers.get("Last-Modified");
   }
   async function checkForUpdate(){
