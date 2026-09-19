@@ -333,8 +333,8 @@
     <option value="6">6</option><option value="7">7</option><option value="8">8</option>
   </select></label>
   <label style="margin:0;">Instrument <select id="simInstrumentSwitch" style="padding:2px 4px;font-size:12.5px;border-radius:6px;">
-    <option value="trombone">Trombone</option><option value="baritone">Baritone</option><option value="tuba">Tuba</option>
     <option value="trumpet">Trumpet</option><option value="frenchhorn">French Horn</option>
+    <option value="trombone">Trombone</option><option value="baritone">Baritone</option><option value="tuba">Tuba</option>
   </select></label>
   <button class="small-btn" id="exitSimBtn" style="background:var(--red-dark);border-color:var(--red-dark);color:#fff;padding:3px 12px;">Exit</button>
 </div>
@@ -365,11 +365,11 @@
       </div>
       <label style="margin-top:12px;">Pick your instrument</label>
       <select id="loginInstrumentSelect">
+        <option value="trumpet">Trumpet</option>
+        <option value="frenchhorn">French Horn</option>
         <option value="trombone">Trombone</option>
         <option value="baritone">Baritone</option>
         <option value="tuba">Tuba</option>
-        <option value="trumpet">Trumpet</option>
-        <option value="frenchhorn">French Horn</option>
       </select>
     </div>
     <div class="msg error" id="loginMsg" role="alert"></div>
@@ -421,11 +421,11 @@
               <span class="instrument-badge" id="primaryInstrumentBadge"></span>
             </div>
             <select id="instrumentSelect">
+              <option value="trumpet">Trumpet (B♭)</option>
+              <option value="frenchhorn">French Horn</option>
               <option value="trombone">Trombone</option>
               <option value="baritone">Baritone</option>
               <option value="tuba">Tuba</option>
-              <option value="trumpet">Trumpet (B♭)</option>
-              <option value="frenchhorn">French Horn</option>
             </select>
             <p class="small" style="margin:4px 0 0;">Which instrument you're practicing on right now — doesn't have to match what you actually play.</p>
             <div class="small" id="instrumentHint" style="margin-top:6px;"></div>
@@ -686,7 +686,7 @@
       <div class="filter-row">
         <input type="text" id="ovSearch" placeholder="Search by name…" style="max-width:200px;">
         <select id="ovGradeFilter"><option value="">All grades</option><option value="6">Grade 6</option><option value="7">Grade 7</option><option value="8">Grade 8</option></select>
-        <select id="ovInstrumentFilter"><option value="">All instruments</option><option value="trombone">Trombone</option><option value="baritone">Baritone</option><option value="tuba">Tuba</option><option value="trumpet">Trumpet</option><option value="frenchhorn">French Horn</option></select>
+        <select id="ovInstrumentFilter"><option value="">All instruments</option><option value="trumpet">Trumpet</option><option value="frenchhorn">French Horn</option><option value="trombone">Trombone</option><option value="baritone">Baritone</option><option value="tuba">Tuba</option></select>
         <select id="quizFilterSelect"><option value="">No quiz selected</option></select>
       </div>
       <div id="tableWrap">
@@ -732,7 +732,7 @@
         <div class="filter-row" style="margin-bottom:0;">
           <input type="text" id="pdSearch" placeholder="Search by name…" style="max-width:180px;">
           <select id="pdGradeFilter"><option value="">All grades</option><option value="6">Grade 6</option><option value="7">Grade 7</option><option value="8">Grade 8</option></select>
-          <select id="pdInstrumentFilter"><option value="">All instruments</option><option value="trombone">Trombone</option><option value="baritone">Baritone</option><option value="tuba">Tuba</option><option value="trumpet">Trumpet</option><option value="frenchhorn">French Horn</option></select>
+          <select id="pdInstrumentFilter"><option value="">All instruments</option><option value="trumpet">Trumpet</option><option value="frenchhorn">French Horn</option><option value="trombone">Trombone</option><option value="baritone">Baritone</option><option value="tuba">Tuba</option></select>
         </div>
         <button class="secondary small-btn" id="openFocusSettingsBtn">Focus Settings</button>
       </div>
@@ -745,7 +745,7 @@
       <p class="small" style="margin-bottom:10px;">Class-wide accuracy per note/position on primary instruments only, worst first (min. 5 attempts).</p>
       <div class="filter-row">
         <select id="tsGradeFilter"><option value="">All grades</option><option value="6">Grade 6</option><option value="7">Grade 7</option><option value="8">Grade 8</option></select>
-        <select id="tsInstrumentFilter"><option value="">All instruments</option><option value="trombone">Trombone</option><option value="baritone">Baritone</option><option value="tuba">Tuba</option><option value="trumpet">Trumpet</option><option value="frenchhorn">French Horn</option></select>
+        <select id="tsInstrumentFilter"><option value="">All instruments</option><option value="trumpet">Trumpet</option><option value="frenchhorn">French Horn</option><option value="trombone">Trombone</option><option value="baritone">Baritone</option><option value="tuba">Tuba</option></select>
       </div>
       <div id="troubleChart"></div>
       <div class="empty-state" id="troubleEmpty" style="display:none;">Not enough response data yet.</div>
@@ -788,11 +788,11 @@
 
             <div class="field-title"><label>Note range / pitches per instrument</label></div>
             <select id="quizInstrumentPicker">
+              <option value="trumpet">Trumpet</option>
+              <option value="frenchhorn">French Horn</option>
               <option value="trombone">Trombone</option>
               <option value="baritone">Baritone</option>
               <option value="tuba">Tuba</option>
-              <option value="trumpet">Trumpet</option>
-              <option value="frenchhorn">French Horn</option>
             </select>
             <div class="staff-slider-wrap"><div id="quizRangeSliderSvg"></div></div>
             <div class="staff-slider-readout" id="quizRangeReadout"></div>
@@ -917,7 +917,7 @@
       <div class="filter-row">
         <input type="text" id="mgmtSearch" placeholder="Search by name…" style="max-width:220px;">
         <select id="mgmtGradeFilter"><option value="">All grades</option><option value="6">Grade 6</option><option value="7">Grade 7</option><option value="8">Grade 8</option></select>
-        <select id="mgmtInstrumentFilter"><option value="">All instruments</option><option value="trombone">Trombone</option><option value="baritone">Baritone</option><option value="tuba">Tuba</option><option value="trumpet">Trumpet</option><option value="frenchhorn">French Horn</option></select>
+        <select id="mgmtInstrumentFilter"><option value="">All instruments</option><option value="trumpet">Trumpet</option><option value="frenchhorn">French Horn</option><option value="trombone">Trombone</option><option value="baritone">Baritone</option><option value="tuba">Tuba</option></select>
       </div>
       <div class="toolbar">
         <label style="margin:0;">Active students</label>
@@ -936,11 +936,11 @@
         </div>
         <div class="field-title"><label>Instrument(s) — leave all unchecked for every instrument</label></div>
         <div class="checkline-row">
+          <label class="checkline"><input type="checkbox" class="cleanupInst" value="trumpet"> Trumpet</label>
+          <label class="checkline"><input type="checkbox" class="cleanupInst" value="frenchhorn"> French Horn</label>
           <label class="checkline"><input type="checkbox" class="cleanupInst" value="trombone"> Trombone</label>
           <label class="checkline"><input type="checkbox" class="cleanupInst" value="baritone"> Baritone</label>
           <label class="checkline"><input type="checkbox" class="cleanupInst" value="tuba"> Tuba</label>
-          <label class="checkline"><input type="checkbox" class="cleanupInst" value="trumpet"> Trumpet</label>
-          <label class="checkline"><input type="checkbox" class="cleanupInst" value="frenchhorn"> French Horn</label>
         </div>
         <div class="field-title"><label>Exercise type(s) — leave all unchecked for every type</label></div>
         <div class="checkline-row">
@@ -1035,11 +1035,11 @@
     </div>
     <label style="margin-top:12px;">Instrument</label>
     <select id="svInstrumentSelect">
+      <option value="trumpet">Trumpet</option>
+      <option value="frenchhorn">French Horn</option>
       <option value="trombone">Trombone</option>
       <option value="baritone">Baritone</option>
       <option value="tuba">Tuba</option>
-      <option value="trumpet">Trumpet</option>
-      <option value="frenchhorn">French Horn</option>
     </select>
     <button class="full" id="startStudentViewBtn" style="margin-top:14px;">Enter Student View</button>
   </div>
@@ -1224,11 +1224,11 @@ const FV = firebase.firestore.FieldValue;
 const FINGERING_DATA = {"trombone":{"clef":"bass","loMidi":40,"hiMidi":70,"chart":{"E2":7,"F2":6,"F#2":5,"G2":4,"G#2":3,"A2":2,"A#2":1,"B2":7,"C3":6,"C#3":5,"D3":4,"D#3":3,"E3":2,"F3":1,"F#3":5,"G3":4,"G#3":3,"A3":2,"A#3":1,"B3":4,"C4":3,"C#4":2,"D4":1,"D#4":3,"E4":2,"F4":1,"F#4":3,"G4":2,"G#4":1,"A4":2,"A#4":1}},"baritone":{"clef":"bass","loMidi":40,"hiMidi":70,"chart":{"E2":{"v1":1,"v2":1,"v3":1},"F2":{"v1":1,"v2":0,"v3":1},"F#2":{"v1":0,"v2":1,"v3":1},"G2":{"v1":1,"v2":1,"v3":0},"G#2":{"v1":1,"v2":0,"v3":0},"A2":{"v1":0,"v2":1,"v3":0},"A#2":{"v1":0,"v2":0,"v3":0},"B2":{"v1":1,"v2":1,"v3":1},"C3":{"v1":1,"v2":0,"v3":1},"C#3":{"v1":0,"v2":1,"v3":1},"D3":{"v1":1,"v2":1,"v3":0},"D#3":{"v1":1,"v2":0,"v3":0},"E3":{"v1":0,"v2":1,"v3":0},"F3":{"v1":0,"v2":0,"v3":0},"F#3":{"v1":0,"v2":1,"v3":1},"G3":{"v1":1,"v2":1,"v3":0},"G#3":{"v1":1,"v2":0,"v3":0},"A3":{"v1":0,"v2":1,"v3":0},"A#3":{"v1":0,"v2":0,"v3":0},"B3":{"v1":1,"v2":1,"v3":0},"C4":{"v1":1,"v2":0,"v3":0},"C#4":{"v1":0,"v2":1,"v3":0},"D4":{"v1":0,"v2":0,"v3":0},"D#4":{"v1":1,"v2":0,"v3":0},"E4":{"v1":0,"v2":1,"v3":0},"F4":{"v1":0,"v2":0,"v3":0},"F#4":{"v1":1,"v2":0,"v3":0},"G4":{"v1":0,"v2":1,"v3":0},"G#4":{"v1":0,"v2":0,"v3":0},"A4":{"v1":0,"v2":1,"v3":0},"A#4":{"v1":0,"v2":0,"v3":0}}},"tuba":{"clef":"bass","loMidi":28,"hiMidi":58,"chart":{"E1":{"v1":1,"v2":1,"v3":1},"F1":{"v1":1,"v2":0,"v3":1},"F#1":{"v1":0,"v2":1,"v3":1},"G1":{"v1":1,"v2":1,"v3":0},"G#1":{"v1":1,"v2":0,"v3":0},"A1":{"v1":0,"v2":1,"v3":0},"A#1":{"v1":0,"v2":0,"v3":0},"B1":{"v1":1,"v2":1,"v3":1},"C2":{"v1":1,"v2":0,"v3":1},"C#2":{"v1":0,"v2":1,"v3":1},"D2":{"v1":1,"v2":1,"v3":0},"D#2":{"v1":1,"v2":0,"v3":0},"E2":{"v1":0,"v2":1,"v3":0},"F2":{"v1":0,"v2":0,"v3":0},"F#2":{"v1":0,"v2":1,"v3":1},"G2":{"v1":1,"v2":1,"v3":0},"G#2":{"v1":1,"v2":0,"v3":0},"A2":{"v1":0,"v2":1,"v3":0},"A#2":{"v1":0,"v2":0,"v3":0},"B2":{"v1":1,"v2":1,"v3":0},"C3":{"v1":1,"v2":0,"v3":0},"C#3":{"v1":0,"v2":1,"v3":0},"D3":{"v1":0,"v2":0,"v3":0},"D#3":{"v1":1,"v2":0,"v3":0},"E3":{"v1":0,"v2":1,"v3":0},"F3":{"v1":0,"v2":0,"v3":0},"F#3":{"v1":1,"v2":0,"v3":0},"G3":{"v1":0,"v2":1,"v3":0},"G#3":{"v1":0,"v2":0,"v3":0},"A3":{"v1":0,"v2":1,"v3":0},"A#3":{"v1":0,"v2":0,"v3":0}}},"trumpet":{"clef":"treble","loMidi":54,"hiMidi":84,"chart":{"F#3":{"v1":1,"v2":1,"v3":1},"G3":{"v1":1,"v2":0,"v3":1},"G#3":{"v1":0,"v2":1,"v3":1},"A3":{"v1":1,"v2":1,"v3":0},"A#3":{"v1":1,"v2":0,"v3":0},"B3":{"v1":0,"v2":1,"v3":0},"C4":{"v1":0,"v2":0,"v3":0},"C#4":{"v1":1,"v2":1,"v3":1},"D4":{"v1":1,"v2":0,"v3":1},"D#4":{"v1":0,"v2":1,"v3":1},"E4":{"v1":1,"v2":1,"v3":0},"F4":{"v1":1,"v2":0,"v3":0},"F#4":{"v1":0,"v2":1,"v3":0},"G4":{"v1":0,"v2":0,"v3":0},"G#4":{"v1":0,"v2":1,"v3":1},"A4":{"v1":1,"v2":1,"v3":0},"A#4":{"v1":1,"v2":0,"v3":0},"B4":{"v1":0,"v2":1,"v3":0},"C5":{"v1":0,"v2":0,"v3":0},"C#5":{"v1":1,"v2":1,"v3":0},"D5":{"v1":1,"v2":0,"v3":0},"D#5":{"v1":0,"v2":1,"v3":0},"E5":{"v1":0,"v2":0,"v3":0},"F5":{"v1":1,"v2":0,"v3":0},"F#5":{"v1":0,"v2":1,"v3":0},"G5":{"v1":0,"v2":0,"v3":0},"G#5":{"v1":1,"v2":0,"v3":0},"A5":{"v1":0,"v2":1,"v3":0},"A#5":{"v1":0,"v2":0,"v3":0},"B5":{"v1":0,"v2":1,"v3":0},"C6":{"v1":0,"v2":0,"v3":0}}},"frenchhorn":{"clef":"treble","loMidi":53,"hiMidi":84,"chart":{"F3":{"v1":0,"v2":0,"v3":0,"trigger":true},"F#3":{"v1":1,"v2":1,"v3":1,"trigger":true},"G3":{"v1":1,"v2":0,"v3":1,"trigger":true},"G#3":{"v1":0,"v2":1,"v3":1,"trigger":true},"A3":{"v1":1,"v2":1,"v3":0,"trigger":true},"A#3":{"v1":1,"v2":0,"v3":0,"trigger":true},"B3":{"v1":0,"v2":1,"v3":0,"trigger":true},"C4":{"v1":0,"v2":0,"v3":0,"trigger":false},"C#4":{"v1":1,"v2":1,"v3":0,"trigger":false},"D4":{"v1":1,"v2":0,"v3":0,"trigger":false},"D#4":{"v1":0,"v2":1,"v3":0,"trigger":false},"E4":{"v1":0,"v2":0,"v3":0,"trigger":false},"F4":{"v1":1,"v2":0,"v3":0,"trigger":false},"F#4":{"v1":0,"v2":1,"v3":0,"trigger":false},"G4":{"v1":0,"v2":0,"v3":0,"trigger":false},"G#4":{"v1":0,"v2":1,"v3":1,"trigger":true},"A4":{"v1":1,"v2":1,"v3":0,"trigger":true},"A#4":{"v1":1,"v2":0,"v3":0,"trigger":true},"B4":{"v1":0,"v2":1,"v3":0,"trigger":true},"C5":{"v1":0,"v2":0,"v3":0,"trigger":true},"C#5":{"v1":1,"v2":1,"v3":0,"trigger":true},"D5":{"v1":1,"v2":0,"v3":0,"trigger":true},"D#5":{"v1":0,"v2":1,"v3":0,"trigger":true},"E5":{"v1":0,"v2":0,"v3":0,"trigger":true},"F5":{"v1":0,"v2":0,"v3":0,"trigger":1},"F#5":{"v1":0,"v2":1,"v3":0,"trigger":true},"G5":{"v1":0,"v2":0,"v3":0,"trigger":true},"G#5":{"v1":0,"v2":1,"v3":1,"trigger":true},"A5":{"v1":1,"v2":1,"v3":0,"trigger":true},"A#5":{"v1":1,"v2":0,"v3":0,"trigger":true},"B5":{"v1":0,"v2":1,"v3":0,"trigger":true},"C6":{"v1":0,"v2":0,"v3":0,"trigger":true}}}};
 
 const INSTRUMENTS = {
+  trumpet:    {label:"Trumpet",      kind:"valve"},
+  frenchhorn: {label:"French Horn",  kind:"valve4"},
   trombone:   {label:"Trombone",     kind:"position"},
   baritone:   {label:"Baritone",     kind:"valve"},
   tuba:       {label:"Tuba",         kind:"valve"},
-  trumpet:    {label:"Trumpet",      kind:"valve"},
-  frenchhorn: {label:"French Horn",  kind:"valve4"},
 };
 Object.keys(INSTRUMENTS).forEach(k=>{
   INSTRUMENTS[k].clef = FINGERING_DATA[k].clef;
@@ -1236,7 +1236,7 @@ Object.keys(INSTRUMENTS).forEach(k=>{
   INSTRUMENTS[k].hiMidi = FINGERING_DATA[k].hiMidi;
   INSTRUMENTS[k].chart = FINGERING_DATA[k].chart;
 });
-const INSTRUMENT_KEYS = ["trombone","baritone","tuba","trumpet","frenchhorn"];
+const INSTRUMENT_KEYS = ["trumpet","frenchhorn","trombone","baritone","tuba"];
 
 const SHARP_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
 const FLAT_NAMES  = ["C","Db","D","Eb","E","F","Gb","G","Ab","A","Bb","B"];
@@ -2644,7 +2644,7 @@ function renderKeySignatureOnly(keyName, clef){
    9. PRACTICE FLOW
    ================================================================ */
 const MODE_LABELS = {noteid:"Note ID", position:"Position ID", keysig:"Key Signature ID", construction:"Note Construction"};
-const CATEGORY_LABELS = {trombone:"Trombone", baritone:"Baritone", tuba:"Tuba", trumpet:"Trumpet", frenchhorn:"French Horn"};
+const CATEGORY_LABELS = {trumpet:"Trumpet", frenchhorn:"French Horn", trombone:"Trombone", baritone:"Baritone", tuba:"Tuba"};
 const INSTRUMENT_ABBR = {trumpet:"Tpt", frenchhorn:"FHn", trombone:"Tbn", baritone:"Btn", tuba:"Tba"};
 const INSTRUMENT_ABBR_ORDER = ["trumpet","frenchhorn","trombone","baritone","tuba"];
 
