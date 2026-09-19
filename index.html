@@ -57,7 +57,19 @@
        browser-level refresh, on both phones and any other touch device. */
     overscroll-behavior-y: contain;
   }
-  body{background:transparent;color:var(--ink);font-family:'Inter',sans-serif;min-height:100vh;}
+  /* Launched from a Home Screen icon (standalone mode, no Safari address
+     bar), "apple-mobile-web-app-status-bar-style: black-translucent" below
+     makes the status bar/notch overlay the web content instead of pushing
+     it down like a normal browser tab's address bar does — so the top of
+     the page (brand header, login card, corner buttons) was rendering
+     underneath the status bar and effectively unreachable. env() resolves
+     to 0 in a normal browser tab, so this only has any effect standalone. */
+  body{background:transparent;color:var(--ink);font-family:'Inter',sans-serif;min-height:100vh;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
   h1,h2,h3,.display{font-family:'Fraunces',serif;color:var(--ink);font-weight:600;letter-spacing:-0.01em;margin:0;}
   .screen{min-height:100vh;display:none;flex-direction:column;align-items:center;padding:28px 16px 60px;}
   .screen.active{display:flex;}
@@ -102,7 +114,7 @@
   /* View-only teacher accounts (e.g. Bolla): hide every mutating control app-wide. */
   body.view-only [data-action="edit"], body.view-only [data-action="delete"], body.view-only [data-action="publish"],
   body.view-only [data-save], body.view-only [data-rename], body.view-only [data-toggle-drop], body.view-only [data-delete-forever],
-  body.view-only #showQuizBuilderBtn, body.view-only #openFocusSettingsBtn, body.view-only #showAdvancedBtn,
+  body.view-only #showQuizBuilderBtn, body.view-only #showResourceBuilderBtn, body.view-only #openFocusSettingsBtn, body.view-only #showAdvancedBtn,
   body.view-only #previewCleanupBtn, body.view-only #runCleanupBtn, body.view-only #showArchiveControlsBtn,
   body.view-only #toggleModeTogglesBtn, body.view-only #modeTogglesWrap, body.view-only #helpersAllowedToggle, body.view-only #helpersLedgerLinesSelect,
   body.view-only .quiz-results-grant, body.view-only [data-mode-toggle]{ display:none !important; }
@@ -186,8 +198,15 @@
   .builder-col2{flex:1;min-width:280px;}
   .setup-main{display:flex;flex-direction:column;align-items:center;flex:1;max-width:1060px;}
   .setup-side{width:190px;flex-shrink:0;display:flex;flex-direction:column;gap:10px;padding-top:64px;}
-  .corner-actions{position:fixed;top:14px;right:16px;z-index:50;}
-  body.sim-active .corner-actions{top:52px;}
+  .corner-actions{position:fixed;top:calc(14px + env(safe-area-inset-top));right:calc(16px + env(safe-area-inset-right));z-index:50;}
+  /* The banner's real height varies (its title + two dropdowns + Exit
+     button wrap onto 2-3 lines on a narrow phone screen instead of the one
+     line it stays on desktop), so a hardcoded offset here left the banner
+     covering the Back button and the top of the screen on phones. --sim-
+     banner-h is measured and kept in sync with the banner's actual
+     rendered height by updateSimBannerOffset() below. */
+  body.sim-active .corner-actions{top:calc(var(--sim-banner-h, 38px) + 14px + env(safe-area-inset-top));}
+  body.sim-active .screen{padding-top:calc(28px + var(--sim-banner-h, 38px));}
   .quiz-cta{width:100%;max-width:420px;background:linear-gradient(135deg,var(--ink),#3a3745);color:#fff;padding:16px 18px;margin-bottom:16px;border-radius:var(--radius);box-shadow:0 8px 24px rgba(35,34,43,0.2);}
   .setup-side .quiz-cta{max-width:none;padding:12px 14px;margin-bottom:0;}
   .setup-side .quiz-cta .qt{font-size:14px;}
@@ -236,7 +255,7 @@
   .info-btn:hover, .info-btn:focus{background:var(--paper);}
   .info-box{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:6px 0 4px;font-size:13px;color:var(--ink-soft);}
 
-  .drawer-back{position:fixed;inset:0;background:rgba(34,20,20,0.5);display:none;align-items:flex-start;justify-content:center;padding:36px 16px;overflow-y:auto;z-index:20;}
+  .drawer-back{position:fixed;inset:0;background:rgba(34,20,20,0.5);display:none;align-items:flex-start;justify-content:center;padding:calc(36px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(36px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));overflow-y:auto;z-index:20;}
   .drawer-back.active{display:flex;}
   .drawer{background:rgba(244,241,251,0.92);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid rgba(255,255,255,0.6);border-radius:var(--radius);max-width:680px;width:100%;padding:26px;box-shadow:0 20px 50px rgba(35,34,43,0.25);}
   .drawer h2{font-size:19px;margin-bottom:4px;}
@@ -300,7 +319,15 @@
 </style>
 </head>
 <body>
-<div id="simBanner" style="display:none;position:fixed;top:0;left:0;right:0;background:var(--gold);color:var(--ink);padding:7px 14px;font-size:12.5px;z-index:998;text-align:center;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;border-bottom:3px solid var(--red-dark);box-shadow:0 2px 8px rgba(0,0,0,0.15);">
+<!-- Auto-update banner: no service worker/build step, so a phone that
+     never fully relaunches the Home Screen app (or a browser tab left
+     open for days) can otherwise sit on stale code indefinitely. See the
+     script's "AUTO-UPDATE CHECK" block near the top for how this shows. -->
+<div id="updateBanner" style="display:none;position:fixed;left:0;right:0;bottom:0;background:var(--ink);color:#fff;padding:10px 14px calc(10px + env(safe-area-inset-bottom));font-size:13px;z-index:999;text-align:center;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;box-shadow:0 -2px 8px rgba(0,0,0,0.2);">
+  <span>A newer version of this app is available.</span>
+  <button class="small-btn" id="updateBannerBtn" style="background:var(--gold);border-color:var(--gold);color:var(--ink);">Refresh now</button>
+</div>
+<div id="simBanner" style="display:none;position:fixed;top:0;left:0;right:0;background:var(--gold);color:var(--ink);padding:calc(7px + env(safe-area-inset-top)) 14px 7px;font-size:12.5px;z-index:998;text-align:center;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;border-bottom:3px solid var(--red-dark);box-shadow:0 2px 8px rgba(0,0,0,0.15);">
   <span style="font-weight:700;">👁 Student View — nothing here is saved</span>
   <label style="margin:0;">Grade <select id="simGradeSwitch" style="padding:2px 4px;font-size:12.5px;border-radius:6px;">
     <option value="6">6</option><option value="7">7</option><option value="8">8</option>
@@ -503,8 +530,35 @@
 
     <div class="setup-side">
       <div id="quizCtaList"></div>
+      <button class="secondary small-btn full" id="openResourcesBtn" style="margin-bottom:8px;">Resources</button>
       <button class="secondary small-btn full" id="openStudentDashBtn">My Progress</button>
     </div>
+  </div>
+</div>
+
+<!-- ================= STUDENT RESOURCES ================= -->
+<div class="screen" id="resourcesScreen">
+  <div class="corner-actions"><button class="ghost small-btn" id="backFromResources">Back</button></div>
+  <div class="brand"><div class="clefs">𝄞 𝄢</div><div><h1>Resources</h1><div class="sub" id="resourcesSubtitle">Loading…</div></div></div>
+  <div style="width:100%;max-width:640px;">
+    <div id="resourcesList"></div>
+    <div class="empty-state" id="resourcesEmpty" style="display:none;">Nothing here yet — check back once your teacher posts something.</div>
+  </div>
+</div>
+
+<!-- ================= RESOURCE VIEWER (pop-up) ================= -->
+<div class="drawer-back" id="resourceViewerModalBack">
+  <div class="drawer" style="max-width:920px;width:96%;height:86vh;display:flex;flex-direction:column;padding:14px;">
+    <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+      <h3 id="resourceViewerTitle" style="font-size:16px;"></h3>
+      <div class="row" style="gap:8px;">
+        <a id="resourceViewerOpenNew" href="#" target="_blank" rel="noopener noreferrer" class="ghost small-btn" style="text-decoration:none;">Open in new tab ↗</a>
+        <button class="ghost small-btn" id="closeResourceViewer">Close</button>
+      </div>
+    </div>
+    <p class="small" id="resourceViewerDesc" style="margin:6px 0;"></p>
+    <p class="small" id="resourceViewerBlockedHint" style="display:none;margin:0 0 6px;color:var(--ink-soft);">If this doesn't load below, the site doesn't allow being shown inside another page — use "Open in new tab" instead.</p>
+    <iframe id="resourceViewerFrame" style="flex:1;width:100%;border:1px solid var(--line);border-radius:var(--radius-sm);background:#fff;" title="Resource content"></iframe>
   </div>
 </div>
 
@@ -620,6 +674,7 @@
       <button class="tab-btn" data-tab="practice">Practice Data</button>
       <button class="tab-btn" data-tab="trouble">Trouble Spots</button>
       <button class="tab-btn" data-tab="quizzes">Quizzes</button>
+      <button class="tab-btn" data-tab="resources">Resources</button>
       <button class="tab-btn" data-tab="additional">Additional Instrument</button>
       <button class="tab-btn" data-tab="management">Student Management</button>
     </div>
@@ -699,7 +754,6 @@
     <!-- QUIZZES -->
     <div class="tab-panel" id="tab-quizzes">
       <p class="small" style="margin-bottom:12px;">Once a student is out of attempts, their button quietly switches to ungraded practice — even before the close date. Anyone who misses the window entirely still gets one graded attempt (flagged "Late" here) instead of being locked out.</p>
-      <label class="checkline" style="margin-bottom:14px;"><input type="checkbox" id="globalHideQuizToggle"> Hide the quiz button from every student's home page for now</label>
 
       <div class="builder-cols">
         <div class="builder-col1">
@@ -764,6 +818,77 @@
             </div>
             <div class="msg error" id="quizFormMsg"></div>
             <button class="full" id="createQuizBtn" style="margin-top:12px;">Create quiz</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RESOURCES -->
+    <div class="tab-panel" id="tab-resources">
+      <p class="small" style="margin-bottom:12px;">Links students see on their own Resources page — fingering charts, study guides for a quiz, videos, anything you want to point them to. Opens for them as a pop-up inside the app when possible; some sites don't allow that and will just offer "Open in new tab" instead.</p>
+
+      <div class="card" style="max-width:none;margin-bottom:14px;">
+        <div class="field-title"><label>Hide the Resources button entirely for these grades</label></div>
+        <p class="small" style="margin-top:-4px;">Independent of any individual resource's targeting below — this turns off the whole Resources page for everyone in a grade.</p>
+        <div class="checkline-row" id="resourceHideByGradeChecks"><p class="small">Loading…</p></div>
+      </div>
+
+      <div class="card" style="max-width:none;margin-bottom:14px;">
+        <div class="field-title"><label>Check what a specific student sees</label></div>
+        <select id="resourceCheckStudentSelect"><option value="">Choose a student…</option></select>
+        <div id="resourceCheckStudentResult" style="margin-top:8px;"></div>
+      </div>
+
+      <div class="builder-cols">
+        <div class="builder-col1">
+          <div class="toolbar">
+            <h3 style="font-size:15px;">All resources</h3>
+            <button class="secondary small-btn" id="showResourceBuilderBtn">+ New resource</button>
+          </div>
+          <div id="resourceList"></div>
+          <div class="empty-state" id="resourceEmpty" style="display:none;">No resources posted yet.</div>
+        </div>
+
+        <div class="builder-col2" id="resourceBuilderCol" style="display:none;">
+          <div class="card" style="max-width:100%;">
+            <div class="row" style="justify-content:space-between;"><h3 id="resourceBuilderTitle">Add a resource</h3><button class="ghost small-btn" id="hideResourceBuilderBtn">Close</button></div>
+            <label for="resourceTitle">Title</label>
+            <input type="text" id="resourceTitle" placeholder="e.g. Trombone slide position chart">
+            <label for="resourceDesc" style="margin-top:10px;">Description (optional)</label>
+            <input type="text" id="resourceDesc" placeholder="One line students will see under the title">
+            <label for="resourceUrl" style="margin-top:10px;">Link</label>
+            <input type="text" id="resourceUrl" placeholder="https://...">
+            <p class="small" style="margin-top:2px;">For a pop-up preview to actually work, the link needs to be one the site allows embedding — a Google Drive "anyone with the link" file (using its /preview link), a YouTube embed link, or a PDF hosted somewhere that allows framing. Otherwise it still works, just opens in a new tab instead.</p>
+
+            <label for="resourceTypeSelect" style="margin-top:10px;">Category</label>
+            <select id="resourceTypeSelect"></select>
+            <div class="row" id="resourceNewTypeRow" style="display:none;margin-top:6px;gap:8px;">
+              <input type="text" id="resourceNewTypeInput" placeholder="New category name" style="flex:1;">
+              <button class="secondary small-btn" id="resourceNewTypeSave">Add</button>
+              <button class="ghost small-btn" id="resourceNewTypeCancel">Cancel</button>
+            </div>
+            <div id="resourceTypeManageList"></div>
+
+            <div id="resourceGradeLockWrap"></div>
+
+            <div class="field-title"><label>Applies to — a student needs BOTH a checked grade AND a checked instrument to be matched</label></div>
+            <p class="small" style="margin-top:-4px;">To reach a grade regardless of instrument, leave every instrument box checked (the default for a new resource).</p>
+            <div id="resourceGradeChecks" class="checkline-row"></div>
+            <div id="resourceInstChecks" class="checkline-row" style="margin-top:6px;"></div>
+
+            <div class="rule"></div>
+            <div class="field-title"><label>Or: give it to (or hide it from) one specific student</label></div>
+            <p class="small">Sticks regardless of the grade/instrument rules above, until cleared.</p>
+            <select id="resourceStudentSelect"><option value="">Choose a student…</option></select>
+            <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap;">
+              <button class="secondary small-btn" id="resourceOverrideOn">Give to student</button>
+              <button class="secondary small-btn" id="resourceOverrideOff">Hide from student</button>
+              <button class="ghost small-btn" id="resourceOverrideClear">Clear override</button>
+            </div>
+            <div id="resourceOverrideList" style="margin-top:10px;"></div>
+
+            <div class="msg error" id="resourceFormMsg"></div>
+            <button class="full" id="saveResourceBtn" style="margin-top:12px;">Add resource</button>
           </div>
         </div>
       </div>
@@ -1045,6 +1170,48 @@ const FV = firebase.firestore.FieldValue;
 })();
 
 /* ================================================================
+   AUTO-UPDATE CHECK — this is a static file with no service worker and
+   no build step, so a phone that keeps the Home Screen app (or a browser
+   tab) open for days would otherwise sit on stale code indefinitely with
+   no way for the person using it to know. Instead of a service worker,
+   just re-fetch this same file with the HTTP cache bypassed, compare its
+   ETag/Last-Modified against the value seen when the page first loaded,
+   and show a small "Refresh now" banner if the server's copy has changed
+   — never an automatic reload, so it can't interrupt someone mid-round or
+   mid-quiz. Runs once on load (to record the baseline) and again whenever
+   the tab/app is brought back to the foreground — the moment someone
+   actually returns to use it. No timer running in the background while
+   it's just sitting open and unattended.
+   ================================================================ */
+(function(){
+  let baseline = null;
+  let notified = false;
+  async function getVersionTag(){
+    // HEAD, not GET — same ETag/Last-Modified headers to compare, without
+    // re-downloading the whole ~250KB file on every check.
+    const res = await fetch(location.pathname + "?_=" + Date.now(), {method:"HEAD", cache:"no-store"});
+    return res.headers.get("ETag") || res.headers.get("Last-Modified");
+  }
+  async function checkForUpdate(){
+    if(notified) return;
+    try{
+      const tag = await getVersionTag();
+      if(!tag) return; // host isn't sending either header — nothing to compare against
+      if(baseline === null){ baseline = tag; return; }
+      if(tag !== baseline){
+        notified = true;
+        document.getElementById("updateBanner").style.display = "flex";
+      }
+    }catch(e){ /* offline, or the request was blocked — just try again next time */ }
+  }
+  checkForUpdate();
+  document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState === "visible") checkForUpdate(); });
+  document.addEventListener("click", e=>{
+    if(e.target.closest && e.target.closest("#updateBannerBtn")) location.reload();
+  });
+})();
+
+/* ================================================================
    2. VERIFIED MUSIC DATA
    Trumpet re-checked against multiple independent published trumpet
    references (open notes Bb3-F4-Bb4-D5-F5 match every source). French
@@ -1222,6 +1389,28 @@ function resetLoginForm(){
   document.querySelectorAll("#schoolPick button").forEach(x=>x.classList.remove("selected"));
   loginBtn.textContent = "Go";
 }
+// Shared by the normal login flow and resumeStudentSession() (a refresh
+// picking this same student back up without asking for the PIN again).
+// Remembering their ID like this — not their PIN — is the same tradeoff
+// already made for the teacher session: on a shared/lab computer that
+// never gets logged out between students, the next person to open the
+// browser resumes whoever was there last, so logging out matters more
+// now than it used to.
+function enterStudentSession(id, fd){
+  state.username = id;
+  state.displayName = fd.displayName;
+  state.firstName = fd.firstName || fd.displayName.split(" ")[0];
+  state.grade = fd.grade;
+  state.school = fd.school || "MSN";
+  state.primaryInstrument = fd.primaryInstrument || null;
+  state.savedSettingsByInstrument = fd.lastSettingsByInstrument || {};
+  state.focusOverride = fd.focusOverride || {};
+  document.getElementById("setupGreeting").textContent = "Hi, " + state.firstName;
+  try{
+    localStorage.setItem("bt_studentSession", id);
+    localStorage.removeItem("bt_teacherSession");
+  }catch(e){}
+}
 [firstNameInput, lastNameInput, pinLoginInput].forEach(el=>{
   el.addEventListener("keydown", e=>{ if(e.key === "Enter") loginBtn.click(); });
 });
@@ -1276,18 +1465,10 @@ loginBtn.addEventListener("click", async ()=>{
       }
       if(suffix > 25){ loginMsg.textContent = "Check your name and PIN, or ask your teacher."; loginBtn.disabled=false; loginBtn.textContent="Go"; return; }
     }
-    state.username = finalId;
     const finalSnap = await db.collection("students").doc(finalId).get();
     const fd = finalSnap.data();
-    state.displayName = fd.displayName;
-    state.firstName = fd.firstName || fd.displayName.split(" ")[0];
     try{ localStorage.setItem("bt_firstName", first); localStorage.setItem("bt_lastName", last); }catch(e){}
-    state.grade = fd.grade;
-    state.school = fd.school || "MSN";
-    state.primaryInstrument = fd.primaryInstrument || null;
-    state.savedSettingsByInstrument = fd.lastSettingsByInstrument || {};
-    state.focusOverride = fd.focusOverride || {};
-    document.getElementById("setupGreeting").textContent = "Hi, " + state.firstName;
+    enterStudentSession(finalId, fd);
     resetLoginForm();
     await loadModesConfig();
     await resetSetupScreen();
@@ -1317,6 +1498,24 @@ document.getElementById("teacherContinueBtn").addEventListener("click", ()=>{
 });
 document.getElementById("pinBackBtn").addEventListener("click", ()=>{ showScreen("loginScreen"); });
 document.getElementById("pinInput").addEventListener("keydown", e=>{ if(e.key==="Enter") document.getElementById("pinSubmitBtn").click(); });
+// Refreshing the page used to always drop a teacher back to a blank login
+// screen — remembering which teacher is currently signed in (not the PIN
+// itself, just who) lets a refresh return straight to the dashboard
+// instead. PIN-gated actions (quiz deletion, promotion, changing PINs)
+// still separately re-check the real PIN via getEffectiveTeacher, so this
+// only saves re-typing it to open the dashboard itself.
+function enterTeacherDashboard(username, teacher){
+  state.teacherUsername = username;
+  state.teacherSchool = teacher.school;
+  state.teacherLabel = teacher.label;
+  state.teacherViewOnly = !!teacher.viewOnly;
+  state.teacherRestrictedView = teacher.restrictedView || null;
+  try{
+    localStorage.setItem("bt_teacherSession", username);
+    localStorage.removeItem("bt_studentSession");
+  }catch(e){ /* private browsing etc — session just won't survive a refresh */ }
+  openDashboard();
+}
 document.getElementById("pinSubmitBtn").addEventListener("click", async ()=>{
   const val = document.getElementById("pinInput").value.trim();
   const msg = document.getElementById("pinMsg");
@@ -1326,14 +1525,42 @@ document.getElementById("pinSubmitBtn").addEventListener("click", async ()=>{
   submitBtn.disabled = false;
   if(teacher && val === teacher.pin){
     msg.textContent = "";
-    state.teacherUsername = pendingTeacherUsername;
-    state.teacherSchool = teacher.school;
-    state.teacherLabel = teacher.label;
-    state.teacherViewOnly = !!teacher.viewOnly;
-    state.teacherRestrictedView = teacher.restrictedView || null;
-    openDashboard();
+    enterTeacherDashboard(pendingTeacherUsername, teacher);
   } else { msg.textContent = "Incorrect PIN."; }
 });
+
+// A refresh used to always drop everyone back to a blank login screen —
+// this picks either a teacher or a student back up from where they left
+// off. The two localStorage keys are cross-cleared on every login/logout
+// so normally only one is ever set; the both-set check below is just a
+// guard against stale leftover state from before this existed.
+(async function resumeSession(){
+  let teacherUsername = null, studentId = null;
+  try{
+    teacherUsername = localStorage.getItem("bt_teacherSession");
+    studentId = localStorage.getItem("bt_studentSession");
+  }catch(e){ return; }
+  if(teacherUsername && studentId){
+    try{ localStorage.removeItem("bt_studentSession"); }catch(e){}
+    studentId = null;
+  }
+  if(teacherUsername && TEACHERS[teacherUsername]){
+    const teacher = await getEffectiveTeacher(teacherUsername);
+    if(teacher) enterTeacherDashboard(teacherUsername, teacher);
+    return;
+  }
+  if(studentId){
+    try{
+      const snap = await db.collection("students").doc(studentId).get();
+      if(!snap.exists || snap.data().dropped){ try{ localStorage.removeItem("bt_studentSession"); }catch(e){} return; }
+      enterStudentSession(studentId, snap.data());
+      await loadModesConfig();
+      await resetSetupScreen();
+      await checkForActiveQuiz();
+      showScreen("setupScreen");
+    }catch(err){ console.error("Couldn't resume student session", err); }
+  }
+})();
 
 /* ================================================================
    STUDENT VIEW (teacher preview — no writes, sample data only)
@@ -1368,6 +1595,7 @@ document.getElementById("startStudentViewBtn").addEventListener("click", async (
   document.getElementById("studentViewModalBack").classList.remove("active");
   document.getElementById("simBanner").style.display = "flex";
   document.body.classList.add("sim-active");
+  updateSimBannerOffset();
   document.getElementById("simGradeSwitch").value = String(grade);
   document.getElementById("simInstrumentSwitch").value = instrument;
   document.getElementById("setupGreeting").textContent = "Hi, Preview";
@@ -1376,6 +1604,15 @@ document.getElementById("startStudentViewBtn").addEventListener("click", async (
   await checkForActiveQuiz();
   showScreen("setupScreen");
 });
+// The banner can wrap onto 2-3 lines on a narrow phone screen instead of
+// staying on the single line it fits on desktop; keep the layout's reserved
+// space matched to how tall it actually rendered, not a guess.
+function updateSimBannerOffset(){
+  const banner = document.getElementById("simBanner");
+  const h = document.body.classList.contains("sim-active") ? banner.offsetHeight : 0;
+  document.documentElement.style.setProperty("--sim-banner-h", h + "px");
+}
+window.addEventListener("resize", ()=>{ if(document.body.classList.contains("sim-active")) updateSimBannerOffset(); });
 async function applySimSwitch(){
   state.grade = parseInt(document.getElementById("simGradeSwitch").value,10);
   const instrument = document.getElementById("simInstrumentSwitch").value;
@@ -1393,6 +1630,7 @@ document.getElementById("exitSimBtn").addEventListener("click", ()=>{
   state.isSimulation = false;
   document.getElementById("simBanner").style.display = "none";
   document.body.classList.remove("sim-active");
+  updateSimBannerOffset();
   showScreen("teacherScreen");
 });
 
@@ -1406,12 +1644,16 @@ function logout(){
   if(state.isSimulation){
     state.isSimulation = false;
     document.getElementById("simBanner").style.display = "none";
-  document.body.classList.remove("sim-active");
+    document.body.classList.remove("sim-active");
+    updateSimBannerOffset();
     showScreen("teacherScreen");
     return;
   }
   state.username = null; state.activeQuiz = null; state.quizId = null; state.quizIsGraded = false;
   state.teacherUsername = null; state.teacherSchool = null; state.teacherLabel = null;
+  state.teacherViewOnly = false; state.teacherRestrictedView = null;
+  document.body.classList.remove("view-only", "restricted-view");
+  try{ localStorage.removeItem("bt_teacherSession"); localStorage.removeItem("bt_studentSession"); }catch(e){}
   clearRoundTimer();
   firstNameInput.value = localStorage.getItem("bt_firstName") || "";
   lastNameInput.value = localStorage.getItem("bt_lastName") || "";
@@ -1693,6 +1935,8 @@ function applyModeVisibility(){
   document.getElementById("constructionModeBtn").style.display = allowed.construction ? "block" : "none";
   document.querySelector('.mode-btn[data-mode="noteid"]').style.display = allowed.noteid ? "block" : "none";
   document.querySelector('.mode-btn[data-mode="position"]').style.display = allowed.position ? "block" : "none";
+  const resourcesHidden = !!(state.resourcesHiddenByGrade && state.resourcesHiddenByGrade[state.grade]);
+  document.getElementById("openResourcesBtn").style.display = resourcesHidden ? "none" : "";
 }
 
 document.getElementById("instrumentSelect").addEventListener("change", e=>{
@@ -2751,6 +2995,68 @@ async function getQuizAttemptsInfo(quizId){
    11. QUIZ — student-side detection
    ================================================================ */
 /* ================================================================
+   11a. STUDENT RESOURCES (read-only — teacher manages these from the
+   Resources tab in the dashboard; a student is matched the same way as
+   Focus Mode: an explicit per-student override wins, otherwise their
+   grade OR primary instrument being checked on the resource matches
+   them. Uses primaryInstrument, not the instrument currently selected
+   in the practice builder, matching how quizzes always key off it too.
+   ================================================================ */
+document.getElementById("openResourcesBtn").addEventListener("click", openResourcesScreen);
+document.getElementById("backFromResources").addEventListener("click", ()=>showScreen("setupScreen"));
+
+function resourceAppliesToStudent(r){
+  const override = r.studentOverrides && r.studentOverrides[state.username];
+  if(override && override.enabled === true) return true;
+  if(override && override.enabled === false) return false;
+  // Grade AND instrument, not OR — a resource needs both boxes checked to
+  // match anyone via grade/instrument rules; see resourceAppliesToStudentObj
+  // (teacher-side) for why this specific combination matters for Bolla.
+  return !!(r.grades && r.grades.includes(state.grade) && r.instruments && r.instruments.includes(state.primaryInstrument));
+}
+
+async function openResourcesScreen(){
+  showScreen("resourcesScreen");
+  document.getElementById("resourcesSubtitle").textContent = "Loading…";
+  const listEl = document.getElementById("resourcesList");
+  listEl.innerHTML = "";
+  try{
+    const snap = await db.collection("resources").where("school","==", state.school).get();
+    const matches = [];
+    snap.forEach(doc=>{
+      const r = Object.assign({id:doc.id}, doc.data());
+      if(r.archived) return;
+      if(resourceAppliesToStudent(r)) matches.push(r);
+    });
+    matches.sort((a,b)=> (a.type||"").localeCompare(b.type||"") || a.title.localeCompare(b.title));
+    document.getElementById("resourcesEmpty").style.display = matches.length ? "none" : "block";
+    document.getElementById("resourcesSubtitle").textContent = matches.length ? `${matches.length} resource${matches.length===1?"":"s"} for you` : "Nothing here yet";
+    matches.forEach(r=>{
+      const item = document.createElement("div");
+      item.className = "quiz-list-item";
+      item.style.cursor = "pointer";
+      item.innerHTML = `<div class="qname">${r.title}</div><div class="small">${r.type||"General"}${r.description ? " · " + r.description : ""}</div>`;
+      item.addEventListener("click", ()=>openResourceViewer(r));
+      listEl.appendChild(item);
+    });
+  }catch(err){
+    console.error(err);
+    document.getElementById("resourcesSubtitle").textContent = "Couldn't load resources: " + (err.message || err.code || "unknown error");
+  }
+}
+function openResourceViewer(r){
+  document.getElementById("resourceViewerTitle").textContent = r.title;
+  document.getElementById("resourceViewerDesc").textContent = r.description || "";
+  document.getElementById("resourceViewerOpenNew").href = r.url;
+  document.getElementById("resourceViewerFrame").src = r.url;
+  document.getElementById("resourceViewerModalBack").classList.add("active");
+}
+document.getElementById("closeResourceViewer").addEventListener("click", ()=>{
+  document.getElementById("resourceViewerModalBack").classList.remove("active");
+  document.getElementById("resourceViewerFrame").src = "about:blank"; // stop any embedded video/audio from continuing in the background
+});
+
+/* ================================================================
    11b. STUDENT PROGRESS DASHBOARD (read-only, own data only)
    ================================================================ */
 document.getElementById("openStudentDashBtn").addEventListener("click", openStudentDashboard);
@@ -2878,7 +3184,6 @@ async function checkForActiveQuiz(){
   const listEl = document.getElementById("quizCtaList");
   listEl.innerHTML = "";
   state.activeQuizzes = [];
-  if(state.globalQuizHidden) return;
   try{
     if(!state.isSimulation){
       const studentSnap = await db.collection("students").doc(state.username).get();
@@ -2969,22 +3274,19 @@ async function loadModesConfig(){
       const d = snap.data();
       if(d.modesByGrade) state.modesByGrade = d.modesByGrade;
       state.modesByGradeInstrument = d.modesByGradeInstrument || {};
-      state.globalQuizHidden = !!d.globalQuizHidden;
       state.focusSettings = d.focusSettings || {};
       state.helpersAllowed = d.helpersAllowed !== false; // default true
       state.helpersLedgerLines = d.helpersLedgerLines || 0;
+      state.resourceTypes = d.resourceTypes || [];
+      state.resourcesHiddenByGrade = d.resourcesHiddenByGrade || {};
     }
   }catch(err){ console.error("Couldn't load config", err); }
 }
 async function saveModesConfig(){
   try{
-    await db.collection("config").doc("settings_"+configScope()).set({modesByGrade: state.modesByGrade, modesByGradeInstrument: state.modesByGradeInstrument || {}, globalQuizHidden: !!state.globalQuizHidden, focusSettings: state.focusSettings || {}, helpersAllowed: state.helpersAllowed !== false, helpersLedgerLines: state.helpersLedgerLines || 0}, {merge:true});
+    await db.collection("config").doc("settings_"+configScope()).set({modesByGrade: state.modesByGrade, modesByGradeInstrument: state.modesByGradeInstrument || {}, focusSettings: state.focusSettings || {}, helpersAllowed: state.helpersAllowed !== false, helpersLedgerLines: state.helpersLedgerLines || 0, resourceTypes: state.resourceTypes || [], resourcesHiddenByGrade: state.resourcesHiddenByGrade || {}}, {merge:true});
   }catch(err){ console.error(err); }
 }
-document.getElementById("globalHideQuizToggle").addEventListener("change", async e=>{
-  state.globalQuizHidden = e.target.checked;
-  await saveModesConfig();
-});
 
 /* ================================================================
    13. TEACHER DASHBOARD — data loading
@@ -2992,13 +3294,18 @@ document.getElementById("globalHideQuizToggle").addEventListener("change", async
    collectionGroup (filtered by the archive cutoff), not the legacy
    per-student counters, so archiving/deleting actually works.
    ================================================================ */
+function switchDashTab(tabName){
+  const btn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+  const panel = document.getElementById("tab-"+tabName);
+  if(!btn || !panel) return;
+  document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
+  document.querySelectorAll(".tab-panel").forEach(p=>p.classList.remove("active"));
+  btn.classList.add("active");
+  panel.classList.add("active");
+  try{ localStorage.setItem("bt_teacherLastTab", tabName); }catch(e){}
+}
 document.querySelectorAll(".tab-btn").forEach(btn=>{
-  btn.addEventListener("click", ()=>{
-    document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
-    document.querySelectorAll(".tab-panel").forEach(p=>p.classList.remove("active"));
-    btn.classList.add("active");
-    document.getElementById("tab-"+btn.dataset.tab).classList.add("active");
-  });
+  btn.addEventListener("click", ()=>switchDashTab(btn.dataset.tab));
 });
 
 async function openDashboard(){
@@ -3017,20 +3324,37 @@ async function openDashboard(){
     state.droppedStudents = students.filter(s=>s.dropped && inView(s));
 
     buildDashRows();
-    await loadQuizzes();
-    loadQuizInstrumentIntoForm();
-    populateQuizFilterDropdown();
-    await applyQuizScores(document.getElementById("quizFilterSelect").value);
-    renderStatRow();
-    renderTroubleSpots();
-    renderPracticeData();
-    renderAdditionalInstrument();
-    renderManagement();
-    renderModeToggles();
+    // Each tab's section below used to be one long unbroken chain — a
+    // failure partway through (e.g. quizzes) silently prevented every
+    // section after it from ever running, including Resources, with
+    // nothing but a subtitle message most people wouldn't think to check.
+    // Each section now fails on its own instead of taking the rest down
+    // with it, and logs which one broke.
+    const loadSection = async (label, fn) => {
+      try{ await fn(); }
+      catch(err){ console.error(`Dashboard section "${label}" failed to load:`, err); }
+    };
+    await loadSection("quizzes", async ()=>{
+      await loadQuizzes();
+      loadQuizInstrumentIntoForm();
+      populateQuizFilterDropdown();
+      await applyQuizScores(document.getElementById("quizFilterSelect").value);
+    });
+    await loadSection("resources", loadResources);
+    await loadSection("overview stats", async ()=>renderStatRow());
+    await loadSection("trouble spots", async ()=>renderTroubleSpots());
+    await loadSection("practice data", async ()=>renderPracticeData());
+    await loadSection("additional instrument", async ()=>renderAdditionalInstrument());
+    await loadSection("student management", async ()=>renderManagement());
+    await loadSection("mode toggles", async ()=>renderModeToggles());
     document.getElementById("helpersAllowedToggle").checked = state.helpersAllowed !== false;
     document.getElementById("helpersLedgerLinesSelect").value = String(state.helpersLedgerLines || 0);
     applyViewOnlyMode();
     document.getElementById("dashSubtitle").textContent = state.allStudents.length + " active student" + (state.allStudents.length===1?"":"s") + (state.teacherViewOnly ? " (view only)" : "");
+    try{
+      const lastTab = localStorage.getItem("bt_teacherLastTab");
+      if(lastTab) switchDashTab(lastTab);
+    }catch(e){}
   }catch(err){
     console.error(err);
     document.getElementById("dashSubtitle").textContent = "Couldn't load data: " + (err.message || err.code || "unknown error");
@@ -3668,6 +3992,394 @@ async function loadQuizzes(){
   }catch(err){ console.error(err); }
 }
 
+/* ================================================================
+   TEACHER — RESOURCES (links students see on their own Resources page).
+   Targeting mirrors Focus Mode: grades[]/instruments[] arrays plus a
+   per-student studentOverrides map ({enabled:true/false}, an object —
+   never a raw boolean, the same lesson learned from the Focus Mode
+   override bug). Bolla only ever manages resources he created himself
+   (allowedInstrumentsForGrade/isWholeGradeForTeacher — already generic,
+   not Focus-specific — gate which grades/instruments he can check so a
+   resource he posts can never reach a student outside his view).
+   ================================================================ */
+// extraType: a resource being edited may carry a type that's since been
+// removed from the master list below — show it in the dropdown for this
+// one resource without silently re-adding it to state.resourceTypes
+// (which could otherwise get persisted back on the next unrelated save).
+function renderResourceTypeOptions(extraType){
+  const sel = document.getElementById("resourceTypeSelect");
+  const cur = sel.value;
+  const types = ["General", ...(state.resourceTypes||[])];
+  if(extraType && !types.includes(extraType)) types.push(extraType);
+  sel.innerHTML = types.map(t=>`<option value="${t}">${t}</option>`).join("") + '<option value="__new__">+ Add new category…</option>';
+  if(types.includes(cur)) sel.value = cur;
+}
+// "General" is always available and can't be removed — it's the fallback
+// for resources whose custom type was later deleted from this list.
+function renderResourceTypeManageList(){
+  const el = document.getElementById("resourceTypeManageList");
+  const types = state.resourceTypes || [];
+  if(!types.length){ el.innerHTML = ""; return; }
+  el.innerHTML = `<p class="small" style="margin:8px 0 4px;">Remove a category (existing resources keep showing it — this only affects new ones):</p>` +
+    types.map(t=>`<span class="checkline" style="display:inline-flex;align-items:center;margin:0 8px 6px 0;background:rgba(35,34,43,0.05);border-radius:8px;padding:2px 4px 2px 10px;">${t}<button type="button" class="ghost small-btn" data-remove-type="${t}" style="padding:2px 8px;margin-left:2px;color:var(--red-dark);">×</button></span>`).join("");
+  el.querySelectorAll("[data-remove-type]").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      const t = btn.dataset.removeType;
+      if(!confirm(`Remove "${t}" from the category list? Resources already using it are unaffected — this only removes it as a choice for new ones.`)) return;
+      state.resourceTypes = (state.resourceTypes||[]).filter(x=>x!==t);
+      await saveModesConfig();
+      renderResourceTypeOptions();
+      renderResourceTypeManageList();
+      if(document.getElementById("resourceTypeSelect").value === t) document.getElementById("resourceTypeSelect").value = "General";
+    });
+  });
+}
+document.getElementById("resourceTypeSelect").addEventListener("change", e=>{
+  if(e.target.value === "__new__"){
+    document.getElementById("resourceNewTypeRow").style.display = "flex";
+    document.getElementById("resourceNewTypeInput").value = "";
+    document.getElementById("resourceNewTypeInput").focus();
+    e.target.value = "General";
+  }
+});
+document.getElementById("resourceNewTypeSave").addEventListener("click", async ()=>{
+  const name = document.getElementById("resourceNewTypeInput").value.trim();
+  if(!name) return;
+  state.resourceTypes = state.resourceTypes || [];
+  if(!state.resourceTypes.includes(name)) state.resourceTypes.push(name);
+  await saveModesConfig();
+  renderResourceTypeOptions();
+  renderResourceTypeManageList();
+  document.getElementById("resourceTypeSelect").value = name;
+  document.getElementById("resourceNewTypeRow").style.display = "none";
+});
+document.getElementById("resourceNewTypeCancel").addEventListener("click", ()=>{
+  document.getElementById("resourceNewTypeRow").style.display = "none";
+});
+
+function populateResourceStudentSelect(){
+  document.getElementById("resourceStudentSelect").innerHTML = '<option value="">Choose a student…</option>' +
+    state.allStudents.map(s=>`<option value="${s.id}">${s.displayName} (Grade ${s.grade})</option>`).join("");
+}
+
+function restrictedGradeOptionsFor(rv){
+  return rv ? Array.from(new Set([...(rv.grades||[]), ...(rv.grade6Instruments ? [6] : [])])).sort() : null;
+}
+function renderResourceTargeting(existing){
+  const restrictedGradeOptions = restrictedGradeOptionsFor(state.teacherRestrictedView);
+  const lockWrap = document.getElementById("resourceGradeLockWrap");
+  if(restrictedGradeOptions){
+    if(!restrictedGradeOptions.includes(state.resourceWorkingGrade)) state.resourceWorkingGrade = restrictedGradeOptions[0];
+    lockWrap.innerHTML = `
+      <div class="card" style="max-width:none;margin:12px 0;">
+        <div class="field-title"><label>Which grade are you setting this up for?</label></div>
+        <div class="grade-pick" id="resourceWorkingGradePick">
+          ${restrictedGradeOptions.map(g=>`<button type="button" data-work-grade="${g}" class="${g===state.resourceWorkingGrade?'selected':''}">Grade ${g}</button>`).join("")}
+        </div>
+        <p class="small" style="margin-top:6px;">${isWholeGradeForTeacher(state.resourceWorkingGrade) ? `Every instrument is available — all of Grade ${state.resourceWorkingGrade} is in your view.` : `Only ${(state.teacherRestrictedView.grade6Instruments||[]).map(k=>CATEGORY_LABELS[k]).join(" and ")} are available for Grade ${state.resourceWorkingGrade} — the rest of that grade belongs to another teacher's roster.`}</p>
+      </div>`;
+    document.querySelectorAll('#resourceWorkingGradePick [data-work-grade]').forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        state.resourceWorkingGrade = parseInt(btn.dataset.workGrade,10);
+        renderResourceTargeting(existing);
+      });
+    });
+  } else {
+    lockWrap.innerHTML = "";
+  }
+  const allowedInstruments = restrictedGradeOptions ? allowedInstrumentsForGrade(state.resourceWorkingGrade) : INSTRUMENT_KEYS;
+  const gradesEl = document.getElementById("resourceGradeChecks");
+  const existingGrades = existing.grades || [];
+  if(!restrictedGradeOptions || isWholeGradeForTeacher(state.resourceWorkingGrade)){
+    const gradeOptions = restrictedGradeOptions ? [state.resourceWorkingGrade] : [6,7,8];
+    gradesEl.innerHTML = gradeOptions.map(g=>`<label class="checkline"><input type="checkbox" class="resourceGrade" data-grade="${g}" ${existingGrades.includes(g)?"checked":""}> Grade ${g}</label>`).join("");
+  } else {
+    gradesEl.innerHTML = `<p class="small">Grade ${state.resourceWorkingGrade} is included automatically alongside whichever instruments you check below — there's no whole-grade box here since the rest of Grade ${state.resourceWorkingGrade} belongs to another teacher's roster.</p>`;
+  }
+  const instEl = document.getElementById("resourceInstChecks");
+  // A brand-new resource (existing.instruments is undefined, not just an
+  // empty array) starts with every allowed instrument checked, so "this
+  // grade, any instrument" is the default under the grade-AND-instrument
+  // rule below — uncheck any you don't want included.
+  const existingInst = existing.instruments !== undefined ? new Set(existing.instruments) : new Set(allowedInstruments);
+  instEl.innerHTML = allowedInstruments.map(k=>`<label class="checkline"><input type="checkbox" class="resourceInst" data-inst="${k}" ${existingInst.has(k)?"checked":""}> ${CATEGORY_LABELS[k]}</label>`).join("");
+}
+
+function renderResourceOverrideList(r){
+  const listEl = document.getElementById("resourceOverrideList");
+  const overrides = (r && r.studentOverrides) || {};
+  const entries = Object.keys(overrides);
+  if(!entries.length){ listEl.innerHTML = `<p class="small">No individual overrides set.</p>`; return; }
+  listEl.innerHTML = `<table><thead><tr><th>Student</th><th>Override</th><th></th></tr></thead><tbody>` +
+    entries.map(sid=>{
+      const s = state.allStudents.find(x=>x.id===sid);
+      const name = s ? s.displayName : sid;
+      return `<tr><td>${name}</td><td>${overrides[sid].enabled ? "Given (ON)" : "Hidden"}</td><td><button class="ghost small-btn" data-clear-resource-override="${sid}">Clear</button></td></tr>`;
+    }).join("") + `</tbody></table>`;
+  listEl.querySelectorAll("[data-clear-resource-override]").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      await db.collection("resources").doc(state.editingResourceId).update({[`studentOverrides.${btn.dataset.clearResourceOverride}`]: FV.delete()});
+      await reloadCurrentResourceOverrides();
+    });
+  });
+}
+async function reloadCurrentResourceOverrides(){
+  if(!state.editingResourceId) return;
+  const doc = await db.collection("resources").doc(state.editingResourceId).get();
+  if(!doc.exists) return;
+  const r = Object.assign({id:doc.id}, doc.data());
+  const idx = state.resourcesCache.findIndex(x=>x.id===r.id);
+  if(idx >= 0) state.resourcesCache[idx] = r;
+  renderResourceOverrideList(r);
+}
+document.getElementById("resourceOverrideOn").addEventListener("click", async ()=>{
+  const msg = document.getElementById("resourceFormMsg");
+  if(!state.editingResourceId){ msg.style.color=""; msg.textContent = "Save the resource first, then set a student override."; return; }
+  const sid = document.getElementById("resourceStudentSelect").value;
+  if(!sid) return;
+  await db.collection("resources").doc(state.editingResourceId).update({[`studentOverrides.${sid}`]: {enabled:true}});
+  await reloadCurrentResourceOverrides();
+});
+document.getElementById("resourceOverrideOff").addEventListener("click", async ()=>{
+  const msg = document.getElementById("resourceFormMsg");
+  if(!state.editingResourceId){ msg.style.color=""; msg.textContent = "Save the resource first, then set a student override."; return; }
+  const sid = document.getElementById("resourceStudentSelect").value;
+  if(!sid) return;
+  await db.collection("resources").doc(state.editingResourceId).update({[`studentOverrides.${sid}`]: {enabled:false}});
+  await reloadCurrentResourceOverrides();
+});
+document.getElementById("resourceOverrideClear").addEventListener("click", async ()=>{
+  if(!state.editingResourceId) return;
+  const sid = document.getElementById("resourceStudentSelect").value;
+  if(!sid) return;
+  await db.collection("resources").doc(state.editingResourceId).update({[`studentOverrides.${sid}`]: FV.delete()});
+  await reloadCurrentResourceOverrides();
+});
+
+function resetResourceBuilderForm(){
+  state.editingResourceId = null;
+  document.getElementById("resourceBuilderTitle").textContent = "Add a resource";
+  document.getElementById("saveResourceBtn").textContent = "Add resource";
+  document.getElementById("resourceTitle").value = "";
+  document.getElementById("resourceDesc").value = "";
+  document.getElementById("resourceUrl").value = "";
+  renderResourceTypeOptions();
+  renderResourceTypeManageList();
+  document.getElementById("resourceTypeSelect").value = "General";
+  document.getElementById("resourceNewTypeRow").style.display = "none";
+  if(state.teacherRestrictedView){
+    const opts = restrictedGradeOptionsFor(state.teacherRestrictedView);
+    state.resourceWorkingGrade = opts[0];
+  }
+  renderResourceTargeting({});
+  populateResourceStudentSelect();
+  document.getElementById("resourceStudentSelect").value = "";
+  const msg = document.getElementById("resourceFormMsg"); msg.style.color=""; msg.textContent = "";
+  renderResourceOverrideList(null);
+}
+function loadResourceForEditing(r){
+  state.editingResourceId = r.id;
+  document.getElementById("resourceBuilderTitle").textContent = "Edit resource";
+  document.getElementById("saveResourceBtn").textContent = "Save changes";
+  document.getElementById("resourceTitle").value = r.title || "";
+  document.getElementById("resourceDesc").value = r.description || "";
+  document.getElementById("resourceUrl").value = r.url || "";
+  const t = r.type || "General";
+  renderResourceTypeOptions(t);
+  renderResourceTypeManageList();
+  document.getElementById("resourceTypeSelect").value = t;
+  document.getElementById("resourceNewTypeRow").style.display = "none";
+  if(state.teacherRestrictedView){
+    const opts = restrictedGradeOptionsFor(state.teacherRestrictedView);
+    state.resourceWorkingGrade = (r.grades||[]).find(g=>opts.includes(g)) || opts[0];
+  }
+  renderResourceTargeting(r);
+  populateResourceStudentSelect();
+  document.getElementById("resourceStudentSelect").value = "";
+  const msg = document.getElementById("resourceFormMsg"); msg.style.color=""; msg.textContent = "";
+  renderResourceOverrideList(r);
+  document.getElementById("resourceBuilderCol").style.display = "block";
+}
+document.getElementById("showResourceBuilderBtn").addEventListener("click", ()=>{
+  resetResourceBuilderForm();
+  document.getElementById("resourceBuilderCol").style.display = "block";
+});
+document.getElementById("hideResourceBuilderBtn").addEventListener("click", ()=>{
+  document.getElementById("resourceBuilderCol").style.display = "none";
+});
+document.getElementById("saveResourceBtn").addEventListener("click", async ()=>{
+  if(state.teacherViewOnly) return;
+  const msg = document.getElementById("resourceFormMsg");
+  msg.style.color = "";
+  const title = document.getElementById("resourceTitle").value.trim();
+  const description = document.getElementById("resourceDesc").value.trim();
+  const url = document.getElementById("resourceUrl").value.trim();
+  const type = document.getElementById("resourceTypeSelect").value;
+  const grades = Array.from(document.querySelectorAll(".resourceGrade:checked")).map(cb=>parseInt(cb.dataset.grade,10));
+  const instruments = Array.from(document.querySelectorAll(".resourceInst:checked")).map(cb=>cb.dataset.inst);
+  // A restricted-view teacher building a resource for a "partial" grade
+  // (Bolla's 6th grade trumpet/horn slice) never sees a whole-grade
+  // checkbox for it — that grade is implied by the working-grade picker
+  // instead, so it has to be included here or the grade-AND-instrument
+  // match below would never fire for anyone.
+  const restrictedGradeOptions = restrictedGradeOptionsFor(state.teacherRestrictedView);
+  if(restrictedGradeOptions && !isWholeGradeForTeacher(state.resourceWorkingGrade) && !grades.includes(state.resourceWorkingGrade)){
+    grades.push(state.resourceWorkingGrade);
+  }
+
+  if(!title){ msg.textContent = "Give it a title."; return; }
+  if(!/^https?:\/\//i.test(url)){ msg.textContent = "Link needs to start with http:// or https://"; return; }
+  // Empty grades/instruments is allowed — a resource meant only for one
+  // specific student (via the override below) can be saved with no
+  // broader targeting, since overrides require the resource to already
+  // exist. But since it now takes BOTH a grade and an instrument to match
+  // anyone, warn if only one side got checked — that combination alone
+  // can never match a student either.
+  if((grades.length>0) !== (instruments.length>0)){
+    if(!confirm("You've checked a grade or an instrument but not both — since both are required to match a student, this won't reach anyone by grade/instrument yet (student overrides still work). Save anyway?")) return;
+  }
+  msg.textContent = "";
+
+  const payload = { title, description, url, type, grades, instruments, school: state.teacherSchool };
+  try{
+    if(state.editingResourceId){
+      await db.collection("resources").doc(state.editingResourceId).update(payload);
+    } else {
+      payload.createdBy = state.teacherUsername;
+      payload.createdAt = FV.serverTimestamp();
+      payload.archived = false;
+      payload.studentOverrides = {};
+      const ref = await db.collection("resources").add(payload);
+      state.editingResourceId = ref.id;
+      document.getElementById("resourceBuilderTitle").textContent = "Edit resource";
+      document.getElementById("saveResourceBtn").textContent = "Save changes";
+    }
+    await loadResources();
+    msg.style.color = "var(--forest)";
+    msg.textContent = "Saved.";
+  }catch(err){ console.error(err); msg.textContent = "Couldn't save — check your connection."; }
+});
+
+// Restricted-view teachers can only toggle a "whole" grade here (same rule
+// as everywhere else) — a partial grade like Bolla's 6th grade trumpet/horn
+// slice can't be hidden as a whole grade without also hiding the Resources
+// button from the Trombone/Baritone/Tuba 6th graders outside his view.
+function renderResourceHideByGradeChecks(){
+  const el = document.getElementById("resourceHideByGradeChecks");
+  const hidden = state.resourcesHiddenByGrade || {};
+  const restrictedGradeOptions = restrictedGradeOptionsFor(state.teacherRestrictedView);
+  const wholeGrades = restrictedGradeOptions ? restrictedGradeOptions.filter(g=>isWholeGradeForTeacher(g)) : [6,7,8];
+  // Clickable toggle buttons (same look as the grade pickers elsewhere in
+  // the app), not checkboxes — a red "selected" button means hidden.
+  let html = `<div class="grade-pick">` + wholeGrades.map(g=>
+    `<button type="button" class="resourceHideGradeBtn ${hidden[g]?'selected':''}" data-grade="${g}">Grade ${g}${hidden[g]?' — hidden':''}</button>`
+  ).join("") + `</div>`;
+  if(restrictedGradeOptions && restrictedGradeOptions.includes(6) && !wholeGrades.includes(6)){
+    html += `<p class="small" style="width:100%;margin-top:6px;">Grade 6 isn't offered here since you only see part of it.</p>`;
+  }
+  el.innerHTML = wholeGrades.length ? html : `<p class="small">None of your grades can be toggled here.</p>`;
+  el.querySelectorAll(".resourceHideGradeBtn").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      state.resourcesHiddenByGrade = state.resourcesHiddenByGrade || {};
+      const g = btn.dataset.grade;
+      state.resourcesHiddenByGrade[g] = !state.resourcesHiddenByGrade[g];
+      await saveModesConfig();
+      renderResourceHideByGradeChecks();
+    });
+  });
+}
+
+function resourceAppliesToStudentObj(r, s){
+  const override = r.studentOverrides && r.studentOverrides[s.id];
+  if(override && override.enabled === true) return true;
+  if(override && override.enabled === false) return false;
+  // Grade AND instrument (not OR): this is what makes it safe for Bolla to
+  // target "Grade 6 + Trumpet/French Horn" at all. Under OR, checking grade
+  // 6 alone would reach every 6th grader regardless of instrument (leaking
+  // Trombone/Baritone/Tuba, which aren't his), and checking the instruments
+  // alone with no grade would reach that instrument in EVERY grade,
+  // including 8th grade — also outside his view. Requiring both narrows it
+  // to exactly his slice. See saveResourceBtn for how a partial grade's
+  // implied grade gets included in r.grades even without a visible checkbox.
+  return !!(r.grades && r.grades.includes(s.grade) && r.instruments && r.instruments.includes(s.primaryInstrument));
+}
+function populateResourceCheckStudentSelect(){
+  document.getElementById("resourceCheckStudentSelect").innerHTML = '<option value="">Choose a student…</option>' +
+    state.allStudents.map(s=>`<option value="${s.id}">${s.displayName} (Grade ${s.grade})</option>`).join("");
+}
+document.getElementById("resourceCheckStudentSelect").addEventListener("change", ()=>{
+  const sid = document.getElementById("resourceCheckStudentSelect").value;
+  const resultEl = document.getElementById("resourceCheckStudentResult");
+  if(!sid){ resultEl.innerHTML = ""; return; }
+  const s = state.allStudents.find(x=>x.id===sid);
+  const hiddenForGrade = !!(state.resourcesHiddenByGrade && state.resourcesHiddenByGrade[s.grade]);
+  if(hiddenForGrade){ resultEl.innerHTML = `<p class="small">${s.displayName}'s Resources button is hidden for Grade ${s.grade} — the checks below wouldn't matter until that's turned back on above.</p>`; return; }
+  const matches = (state.resourcesCache||[]).filter(r=>!r.archived && resourceAppliesToStudentObj(r, s));
+  if(!matches.length){ resultEl.innerHTML = `<p class="small">${s.displayName} doesn't see any resources right now.</p>`; return; }
+  resultEl.innerHTML = `<p class="small">${s.displayName} sees:</p><ul style="margin:4px 0 0 18px;padding:0;">` +
+    matches.map(r=>`<li class="small">${r.title} <span style="color:var(--ink-soft);">(${r.type||"General"})</span></li>`).join("") + `</ul>`;
+});
+
+async function loadResources(){
+  const listEl = document.getElementById("resourceList");
+  listEl.innerHTML = "";
+  try{
+    const snap = await db.collection("resources").where("school","==", state.teacherSchool).get();
+    state.resourcesCache = [];
+    snap.forEach(doc=> state.resourcesCache.push(Object.assign({id:doc.id}, doc.data())));
+    renderResourceHideByGradeChecks();
+    populateResourceCheckStudentSelect();
+    // Bolla only ever manages resources he created himself; full-roster
+    // teachers see and manage every resource at their school, same as
+    // they always could before restricted-view teachers existed.
+    const visible = state.teacherRestrictedView ? state.resourcesCache.filter(r=>r.createdBy===state.teacherUsername) : state.resourcesCache;
+    visible.sort((a,b)=> (b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0) - (a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0));
+    document.getElementById("resourceEmpty").style.display = visible.length ? "none" : "block";
+    visible.forEach(r=>{
+      const item = document.createElement("div");
+      item.className = "quiz-list-item";
+      const gradesTxt = (r.grades||[]).length ? "grades " + r.grades.join(",") : null;
+      const instTxt = (r.instruments||[]).length ? (r.instruments||[]).map(k=>CATEGORY_LABELS[k]).join(", ") : null;
+      const targetSummary = (gradesTxt && instTxt) ? `${gradesTxt} AND ${instTxt}` : (gradesTxt || instTxt || "no grade/instrument targets set — student overrides only");
+      // A resource saved back when this was OR-based (grade only, or
+      // instrument only, no student overrides either) now matches nobody
+      // under the AND rule — flag it visibly instead of letting it silently
+      // stop reaching anyone.
+      const onlyOneSideSet = (!!gradesTxt) !== (!!instTxt);
+      const overrideCount = Object.keys(r.studentOverrides||{}).length;
+      item.innerHTML = `
+        <div class="qname">${r.title} <span class="quiz-status ${r.archived?'closed':'open'}">${r.archived?'Hidden from students':'Visible'}</span>${onlyOneSideSet ? ' <span class="quiz-status closed">⚠ needs both grade + instrument</span>' : ''}</div>
+        <div class="small">${r.type||"General"} · ${targetSummary}${overrideCount?` · ${overrideCount} student override${overrideCount===1?'':'s'}`:''}</div>
+        <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap;">
+          <button class="ghost small-btn" data-action="edit">Edit</button>
+          <button class="ghost small-btn" data-action="publish">${r.archived ? "Show to students" : "Hide from students"}</button>
+          <button class="ghost small-btn" data-action="delete" style="color:var(--red-dark);">Delete</button>
+        </div>`;
+      item.querySelector('[data-action="edit"]').addEventListener("click", ()=>loadResourceForEditing(r));
+      item.querySelector('[data-action="publish"]').addEventListener("click", async ()=>{
+        await db.collection("resources").doc(r.id).update({archived: !r.archived});
+        await loadResources();
+      });
+      item.querySelector('[data-action="delete"]').addEventListener("click", async ()=>{
+        if(!confirm(`Delete "${r.title}"? This can't be undone.`)) return;
+        await db.collection("resources").doc(r.id).delete();
+        await loadResources();
+      });
+      listEl.appendChild(item);
+    });
+  }catch(err){
+    console.error("loadResources failed:", err);
+    // Surface the real error right where the blank space would otherwise
+    // be, instead of only in the console — this is the one place several
+    // reports of "the grade buttons are just blank" turned out to be
+    // undiagnosable without opening dev tools.
+    const errMsg = "Couldn't load: " + (err.message || err.code || "unknown error");
+    document.getElementById("resourceHideByGradeChecks").innerHTML = `<p class="small" style="color:var(--red-dark);">${errMsg}</p>`;
+    document.getElementById("resourceEmpty").textContent = errMsg;
+    document.getElementById("resourceEmpty").style.display = "block";
+  }
+}
+
 let quizResultsSortKey = "name";
 document.querySelectorAll('[data-sort]').forEach(b=>{
   b.addEventListener("click", ()=>{ quizResultsSortKey = b.dataset.sort; if(state.currentQuizForDrawer) renderQuizResultsTable(state.currentQuizForDrawer); });
@@ -3791,7 +4503,7 @@ async function renameStudentUsername(oldId){
   }
 }
 
-let mgmtSortKey = "displayName", mgmtSortDir = 1;
+let mgmtSortKey = "firstName", mgmtSortDir = 1;
 document.getElementById("showChangePinBtn").addEventListener("click", ()=>{
   const wrap = document.getElementById("changePinWrap");
   wrap.style.display = wrap.style.display === "block" ? "none" : "block";
@@ -3835,14 +4547,16 @@ function renderManagement(){
   if(!list.length){ wrap.innerHTML = `<div class="empty-state">${showingDropped ? "No dropped students match." : "No students match."}</div>`; return; }
   const sortArrow = key => key===mgmtSortKey ? (mgmtSortDir===1?" ▲":" ▼") : "";
   let html = `<table><thead><tr>
-    <th data-mgmt-sort="displayName">Name${sortArrow("displayName")}</th>
+    <th data-mgmt-sort="firstName">First name${sortArrow("firstName")}</th>
+    <th data-mgmt-sort="lastName">Last name${sortArrow("lastName")}</th>
     <th data-mgmt-sort="id">Username${sortArrow("id")}</th>
     <th data-mgmt-sort="grade">Grade${sortArrow("grade")}</th>
     <th data-mgmt-sort="primaryInstrument">Instrument${sortArrow("primaryInstrument")}</th>
     <th>PIN</th><th>Actions</th></tr></thead><tbody>`;
   list.forEach(s=>{
     html += `<tr>
-      <td>${s.displayName}</td>
+      <td>${s.firstName||""}</td>
+      <td>${s.lastName||""}</td>
       <td class="small">${s.id}</td>
       <td><input type="number" min="6" max="8" value="${s.grade||""}" style="width:56px;" data-grade-edit="${s.id}"></td>
       <td>
