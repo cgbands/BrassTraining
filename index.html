@@ -1080,9 +1080,10 @@ const FV = firebase.firestore.FieldValue;
    ETag/Last-Modified against the value seen when the page first loaded,
    and show a small "Refresh now" banner if the server's copy has changed
    — never an automatic reload, so it can't interrupt someone mid-round or
-   mid-quiz. Runs once on load (to record the baseline), again whenever
-   the tab/app is brought back to the foreground (the moment someone
-   actually returns to use it), and every 10 minutes while left open.
+   mid-quiz. Runs once on load (to record the baseline) and again whenever
+   the tab/app is brought back to the foreground — the moment someone
+   actually returns to use it. No timer running in the background while
+   it's just sitting open and unattended.
    ================================================================ */
 (function(){
   let baseline = null;
@@ -1107,7 +1108,6 @@ const FV = firebase.firestore.FieldValue;
   }
   checkForUpdate();
   document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState === "visible") checkForUpdate(); });
-  setInterval(checkForUpdate, 10*60*1000);
   document.addEventListener("click", e=>{
     if(e.target.closest && e.target.closest("#updateBannerBtn")) location.reload();
   });
