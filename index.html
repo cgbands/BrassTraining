@@ -1001,6 +1001,13 @@
           <button class="secondary" id="startPromoteBtn" style="margin-top:10px;">Start year-end promotion…</button>
           <p class="small restricted-view-note" id="restrictedPromoteNote" style="display:none;margin-top:8px;">This account only sees part of the roster, so year-end promotion is handled by whichever teacher manages the full student list — running it from two overlapping accounts could push the same student up two grades by accident.</p>
         </div>
+
+        <div class="card" style="max-width:none;margin-top:16px;">
+          <h3 style="margin-bottom:6px;">Storage &amp; usage</h3>
+          <p class="small" style="margin-top:-2px;">A rough gauge against Firebase's free-tier limits — counted from your own data, not Google's billing numbers, so treat the percentages as estimates, not exact readings.</p>
+          <button class="secondary small-btn" id="refreshUsageStatsBtn">Check current usage</button>
+          <div id="usageStatsResult" style="margin-top:10px;"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -5413,6 +5420,76 @@ document.getElementById("showAdvancedBtn").addEventListener("click", ()=>{
   const showing = wrap.style.display === "block";
   wrap.style.display = showing ? "none" : "block";
   document.getElementById("showAdvancedBtn").textContent = showing ? "Advanced options" : "Hide advanced options";
+});
+
+/* ================================================================
+   USAGE & LIMITS — a rough, on-demand gauge against Firebase Spark
+   (free-tier) caps. Only run when the teacher clicks the button, since
+   even a count() aggregation query still spends a read. Firestore has
+   no client-readable API for the real daily read/write/egress counters
+   (those live in Cloud Monitoring behind the project owner's Google
+   login) — this only estimates STORAGE, which we can derive from our
+   own documents, and calls that out explicitly rather than pretending
+   it's exact.
+   ================================================================ */
+const FIRESTORE_STORAGE_CAP_BYTES = 1 * 1024 * 1024 * 1024; // Spark plan: 1 GiB
+function usageBarClass(pct){
+  if(pct >= 80) return "";       // red-dark (default) — getting close
+  if(pct >= 50) return "mid";    // gold — worth keeping an eye on
+  return "good";                 // forest green — plenty of headroom
+}
+function formatBytes(n){
+  if(n < 1024) return n + " B";
+  if(n < 1024*1024) return (n/1024).toFixed(1) + " KB";
+  if(n < 1024*1024*1024) return (n/1024/1024).toFixed(1) + " MB";
+  return (n/1024/1024/1024).toFixed(2) + " GB";
+}
+async function estimateCollectionBytes(collRef){
+  const snap = await collRef.get();
+  let bytes = 0;
+  snap.forEach(doc=>{ bytes += JSON.stringify(doc.data()).length; });
+  return {count: snap.size, bytes};
+}
+document.getElementById("refreshUsageStatsBtn").addEventListener("click", async ()=>{
+  const btn = document.getElementById("refreshUsageStatsBtn");
+  const out = document.getElementById("usageStatsResult");
+  btn.disabled = true;
+  out.innerHTML = `<p class="small">Checking…</p>`;
+  try{
+    const [students, quizzes, resources] = await Promise.all([
+      estimateCollectionBytes(db.collection("students")),
+      estimateCollectionBytes(db.collection("quizzes")),
+      estimateCollectionBytes(db.collection("resources")),
+    ]);
+
+    let responseCount, sampleBytes, sampleCount;
+    try{
+      const countSnap = await db.collectionGroup("responses").count().get();
+      responseCount = countSnap.data().count;
+    }catch(e){
+      const fullSnap = await db.collectionGroup("responses").get();
+      responseCount = fullSnap.size;
+    }
+    const sampleSnap = await db.collectionGroup("responses").limit(50).get();
+    sampleCount = sampleSnap.size;
+    sampleBytes = 0;
+    sampleSnap.forEach(doc=>{ sampleBytes += JSON.stringify(doc.data()).length; });
+    const avgResponseBytes = sampleCount ? (sampleBytes / sampleCount) : 0;
+    const estResponseBytes = Math.round(avgResponseBytes * responseCount);
+
+    const totalBytes = students.bytes + quizzes.bytes + resources.bytes + estResponseBytes;
+    const storagePct = Math.min(100, (totalBytes / FIRESTORE_STORAGE_CAP_BYTES) * 100);
+
+    out.innerHTML = `
+      <div class="bar-row"><div>Firestore storage (est.)</div><div class="bar-track"><div class="bar-fill ${usageBarClass(storagePct)}" style="width:${storagePct.toFixed(1)}%"></div></div><div class="small">${storagePct.toFixed(1)}%</div></div>
+      <p class="small" style="margin-top:2px;">~${formatBytes(totalBytes)} of the 1 GiB free-tier cap — students: ${students.count} doc${students.count===1?"":"s"}, quizzes: ${quizzes.count}, resources: ${resources.count}, practice answers: ${responseCount} (size estimated from a ${sampleCount}-document sample, so treat it as ballpark).</p>
+      <p class="small" style="margin-top:10px;">Daily reads (50,000), daily writes (20,000), and monthly network egress (10 GB) can't be read from inside the app — Firestore only exposes those in the project owner's Firebase Console under <b>Firestore Database → Usage</b>. Worth a glance there occasionally, especially around quiz days when writes spike.</p>
+      <p class="small" style="margin-top:8px;">GitHub repo: well under any real limit (a single HTML file plus a few icons) — nothing to monitor there.</p>
+    `;
+  }catch(err){
+    out.innerHTML = `<p class="msg error">Couldn't check usage: ${err.message || err.code || "unknown error"}</p>`;
+  }
+  btn.disabled = false;
 });
 document.getElementById("startPromoteBtn").addEventListener("click", ()=>{
   if(state.teacherRestrictedView){ alert("Year-end promotion is only available from an account that manages the full roster."); return; }
