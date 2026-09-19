@@ -4323,12 +4323,15 @@ document.getElementById("resourceCheckStudentSelect").addEventListener("change",
 async function loadResources(){
   const listEl = document.getElementById("resourceList");
   listEl.innerHTML = "";
+  // The hide/show-by-grade toggles and the per-student checker don't need
+  // the resources list itself — render them up front so a permission error
+  // fetching the list (below) doesn't also blank out these controls.
+  renderResourceHideByGradeChecks();
+  populateResourceCheckStudentSelect();
   try{
     const snap = await db.collection("resources").where("school","==", state.teacherSchool).get();
     state.resourcesCache = [];
     snap.forEach(doc=> state.resourcesCache.push(Object.assign({id:doc.id}, doc.data())));
-    renderResourceHideByGradeChecks();
-    populateResourceCheckStudentSelect();
     // Bolla only ever manages resources he created himself; full-roster
     // teachers see and manage every resource at their school, same as
     // they always could before restricted-view teachers existed.
@@ -4369,12 +4372,11 @@ async function loadResources(){
     });
   }catch(err){
     console.error("loadResources failed:", err);
-    // Surface the real error right where the blank space would otherwise
-    // be, instead of only in the console — this is the one place several
-    // reports of "the grade buttons are just blank" turned out to be
-    // undiagnosable without opening dev tools.
+    // Surface the real error right where the blank list would otherwise be,
+    // instead of only in the console — but leave the hide/show-by-grade
+    // toggles and student checker above alone, since they don't depend on
+    // this fetch and shouldn't disappear just because the list failed to load.
     const errMsg = "Couldn't load: " + (err.message || err.code || "unknown error");
-    document.getElementById("resourceHideByGradeChecks").innerHTML = `<p class="small" style="color:var(--red-dark);">${errMsg}</p>`;
     document.getElementById("resourceEmpty").textContent = errMsg;
     document.getElementById("resourceEmpty").style.display = "block";
   }
