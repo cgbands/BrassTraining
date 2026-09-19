@@ -754,7 +754,6 @@
     <!-- QUIZZES -->
     <div class="tab-panel" id="tab-quizzes">
       <p class="small" style="margin-bottom:12px;">Once a student is out of attempts, their button quietly switches to ungraded practice — even before the close date. Anyone who misses the window entirely still gets one graded attempt (flagged "Late" here) instead of being locked out.</p>
-      <label class="checkline" style="margin-bottom:14px;"><input type="checkbox" id="globalHideQuizToggle"> Hide the quiz button from every student's home page for now</label>
 
       <div class="builder-cols">
         <div class="builder-col1">
@@ -3122,7 +3121,6 @@ async function checkForActiveQuiz(){
   const listEl = document.getElementById("quizCtaList");
   listEl.innerHTML = "";
   state.activeQuizzes = [];
-  if(state.globalQuizHidden) return;
   try{
     if(!state.isSimulation){
       const studentSnap = await db.collection("students").doc(state.username).get();
@@ -3213,7 +3211,6 @@ async function loadModesConfig(){
       const d = snap.data();
       if(d.modesByGrade) state.modesByGrade = d.modesByGrade;
       state.modesByGradeInstrument = d.modesByGradeInstrument || {};
-      state.globalQuizHidden = !!d.globalQuizHidden;
       state.focusSettings = d.focusSettings || {};
       state.helpersAllowed = d.helpersAllowed !== false; // default true
       state.helpersLedgerLines = d.helpersLedgerLines || 0;
@@ -3224,13 +3221,9 @@ async function loadModesConfig(){
 }
 async function saveModesConfig(){
   try{
-    await db.collection("config").doc("settings_"+configScope()).set({modesByGrade: state.modesByGrade, modesByGradeInstrument: state.modesByGradeInstrument || {}, globalQuizHidden: !!state.globalQuizHidden, focusSettings: state.focusSettings || {}, helpersAllowed: state.helpersAllowed !== false, helpersLedgerLines: state.helpersLedgerLines || 0, resourceTypes: state.resourceTypes || [], resourcesHiddenByGrade: state.resourcesHiddenByGrade || {}}, {merge:true});
+    await db.collection("config").doc("settings_"+configScope()).set({modesByGrade: state.modesByGrade, modesByGradeInstrument: state.modesByGradeInstrument || {}, focusSettings: state.focusSettings || {}, helpersAllowed: state.helpersAllowed !== false, helpersLedgerLines: state.helpersLedgerLines || 0, resourceTypes: state.resourceTypes || [], resourcesHiddenByGrade: state.resourcesHiddenByGrade || {}}, {merge:true});
   }catch(err){ console.error(err); }
 }
-document.getElementById("globalHideQuizToggle").addEventListener("change", async e=>{
-  state.globalQuizHidden = e.target.checked;
-  await saveModesConfig();
-});
 
 /* ================================================================
    13. TEACHER DASHBOARD — data loading
@@ -4416,7 +4409,7 @@ async function renameStudentUsername(oldId){
   }
 }
 
-let mgmtSortKey = "displayName", mgmtSortDir = 1;
+let mgmtSortKey = "firstName", mgmtSortDir = 1;
 document.getElementById("showChangePinBtn").addEventListener("click", ()=>{
   const wrap = document.getElementById("changePinWrap");
   wrap.style.display = wrap.style.display === "block" ? "none" : "block";
@@ -4460,14 +4453,16 @@ function renderManagement(){
   if(!list.length){ wrap.innerHTML = `<div class="empty-state">${showingDropped ? "No dropped students match." : "No students match."}</div>`; return; }
   const sortArrow = key => key===mgmtSortKey ? (mgmtSortDir===1?" ▲":" ▼") : "";
   let html = `<table><thead><tr>
-    <th data-mgmt-sort="displayName">Name${sortArrow("displayName")}</th>
+    <th data-mgmt-sort="firstName">First name${sortArrow("firstName")}</th>
+    <th data-mgmt-sort="lastName">Last name${sortArrow("lastName")}</th>
     <th data-mgmt-sort="id">Username${sortArrow("id")}</th>
     <th data-mgmt-sort="grade">Grade${sortArrow("grade")}</th>
     <th data-mgmt-sort="primaryInstrument">Instrument${sortArrow("primaryInstrument")}</th>
     <th>PIN</th><th>Actions</th></tr></thead><tbody>`;
   list.forEach(s=>{
     html += `<tr>
-      <td>${s.displayName}</td>
+      <td>${s.firstName||""}</td>
+      <td>${s.lastName||""}</td>
       <td class="small">${s.id}</td>
       <td><input type="number" min="6" max="8" value="${s.grade||""}" style="width:56px;" data-grade-edit="${s.id}"></td>
       <td>
