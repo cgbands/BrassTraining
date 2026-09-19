@@ -4264,9 +4264,14 @@ async function loadResources(){
       const gradesTxt = (r.grades||[]).length ? "grades " + r.grades.join(",") : null;
       const instTxt = (r.instruments||[]).length ? (r.instruments||[]).map(k=>CATEGORY_LABELS[k]).join(", ") : null;
       const targetSummary = (gradesTxt && instTxt) ? `${gradesTxt} AND ${instTxt}` : (gradesTxt || instTxt || "no grade/instrument targets set — student overrides only");
+      // A resource saved back when this was OR-based (grade only, or
+      // instrument only, no student overrides either) now matches nobody
+      // under the AND rule — flag it visibly instead of letting it silently
+      // stop reaching anyone.
+      const onlyOneSideSet = (!!gradesTxt) !== (!!instTxt);
       const overrideCount = Object.keys(r.studentOverrides||{}).length;
       item.innerHTML = `
-        <div class="qname">${r.title} <span class="quiz-status ${r.archived?'closed':'open'}">${r.archived?'Hidden from students':'Visible'}</span></div>
+        <div class="qname">${r.title} <span class="quiz-status ${r.archived?'closed':'open'}">${r.archived?'Hidden from students':'Visible'}</span>${onlyOneSideSet ? ' <span class="quiz-status closed">⚠ needs both grade + instrument</span>' : ''}</div>
         <div class="small">${r.type||"General"} · ${targetSummary}${overrideCount?` · ${overrideCount} student override${overrideCount===1?'':'s'}`:''}</div>
         <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap;">
           <button class="ghost small-btn" data-action="edit">Edit</button>
