@@ -109,6 +109,7 @@
   .focusInst{accent-color:var(--red);width:16px;height:16px;}
   label.current-editing{outline:2px solid var(--red);outline-offset:3px;border-radius:6px;background:rgba(230,57,70,0.08);}
   .two-col{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .two-col > div{min-width:0;}
   #focusTabBody .two-col{grid-template-columns:1.2fr 1fr;gap:20px;}
   .checkline{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--ink-soft);}
   /* View-only teacher accounts (e.g. Bolla): hide every mutating control app-wide. */
@@ -315,6 +316,10 @@
     .noteid-grid.keysig-grid{grid-template-columns:repeat(7,1fr);font-size:10px;}
     .bar-row{grid-template-columns:100px 1fr 44px;}
     .valve-panel{gap:14px;}
+    .two-col{grid-template-columns:1fr;}
+    #focusTabBody .two-col{grid-template-columns:1fr;}
+    #tableWrap, #practiceDataWrap{overflow-x:auto;}
+    #studentTable, #practiceDataTable{min-width:640px;}
   }
 
   /* Chromebook / laptop-width layout — use the room instead of a narrow mobile column */
