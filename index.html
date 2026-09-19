@@ -176,7 +176,7 @@
   /* note ID fixed answer grid */
   .noteid-grid{margin-top:16px;display:grid;grid-template-columns:repeat(7,1fr);gap:8px;}
   .noteid-grid.keysig-grid{grid-template-columns:repeat(7,1fr);}
-  .noteid-grid button{background:rgba(255,255,255,0.75);color:var(--ink);border:1.5px solid var(--ink);border-radius:12px;padding:12px 4px;font-size:15px;font-family:'Fraunces',serif;font-weight:600;box-shadow:none;}
+  .noteid-grid button{width:100%;box-sizing:border-box;background:rgba(255,255,255,0.75);color:var(--ink);border:1.5px solid var(--ink);border-radius:12px;padding:12px 4px;font-size:15px;font-family:'Fraunces',serif;font-weight:600;box-shadow:none;}
   .noteid-grid button.correct{background:var(--forest);border-color:var(--forest);color:#fff;}
   .noteid-grid button.incorrect{background:var(--red-dark);border-color:var(--red-dark);color:#fff;}
   .noteid-grid button.reveal{background:var(--forest);border-color:var(--forest);color:#fff;}
@@ -1286,12 +1286,8 @@ function studentNoteLabel(letterOnly){
 function isNaturalPc(pc){ return NATURAL_PCS.includes(pc); }
 
 /* ---------------- Key signatures (major only) ---------------- */
-// F#/C# and Cb were dropped: each is just an enharmonic respelling of Gb/Db
-// and B, and having both spellings as separate quizzable/answerable keys
-// only left students guessing between two equally-valid names for the same
-// key signature. Every pitch class now has exactly one canonical key name.
-const SHARP_KEYS = [{name:"C",pc:0},{name:"G",pc:7},{name:"D",pc:2},{name:"A",pc:9},{name:"E",pc:4},{name:"B",pc:11}];
-const FLAT_KEYS  = [{name:"C",pc:0},{name:"F",pc:5},{name:"Bb",pc:10},{name:"Eb",pc:3},{name:"Ab",pc:8},{name:"Db",pc:1},{name:"Gb",pc:6}];
+const SHARP_KEYS = [{name:"C",pc:0},{name:"G",pc:7},{name:"D",pc:2},{name:"A",pc:9},{name:"E",pc:4},{name:"B",pc:11},{name:"F#",pc:6},{name:"C#",pc:1}];
+const FLAT_KEYS  = [{name:"C",pc:0},{name:"F",pc:5},{name:"Bb",pc:10},{name:"Eb",pc:3},{name:"Ab",pc:8},{name:"Db",pc:1},{name:"Gb",pc:6},{name:"Cb",pc:11}];
 function findKeyByPc(pc, preferSharp){
   const primary = preferSharp ? SHARP_KEYS : FLAT_KEYS;
   const secondary = preferSharp ? FLAT_KEYS : SHARP_KEYS;
@@ -2358,11 +2354,10 @@ function enabledKeySignatures(){
   const enabled = all.filter(k => state.keySignaturePool[k.list+":"+k.name] !== false);
   return enabled.length ? enabled : all;
 }
-// Key Signature ID grid: a naturals row plus a flats row — each column is a
-// natural letter (C,D,E,F,G,A,B). Every accidental key signature the app
-// quizzes on is spelled with a flat (Db/Eb/Gb/Ab/Bb); there's no separate
-// sharp-spelled row since a sharp spelling would just be an enharmonic
-// duplicate of one of these (e.g. no "D#" button — that key is always Eb).
+// Key Signature ID grid: naturals row, sharps row, flats row — each column
+// is a natural letter (C,D,E,F,G,A,B). Blank where the key isn't
+// conventionally used (E#, B#, Fb). Exact spelling required — no
+// enharmonic credit (D# is never accepted for Eb, etc.).
 const KEYSIG_LETTER_COL = {C:1,D:2,E:3,F:4,G:5,A:6,B:7};
 function buildKeysigGridCells(){
   const cells = [];
@@ -2370,11 +2365,17 @@ function buildKeysigGridCells(){
     const pc = SHARP_NAMES.indexOf(letter);
     cells.push({label:letter, col:KEYSIG_LETTER_COL[letter], row:1, pc, preferSharp:true});
   });
-  [["C",true],["D"],["E"],["F",true],["G"],["A"],["B"]].forEach(([letter,blank])=>{
+  [["C"],["D"],["E",true],["F"],["G"],["A"],["B",true]].forEach(([letter,blank])=>{
+    if(blank) return;
+    const naturalPc = SHARP_NAMES.indexOf(letter);
+    const pc = (naturalPc+1)%12;
+    cells.push({label:letter+"#", col:KEYSIG_LETTER_COL[letter], row:2, pc, preferSharp:true});
+  });
+  [["C"],["D"],["E"],["F",true],["G"],["A"],["B"]].forEach(([letter,blank])=>{
     if(blank) return;
     const naturalPc = SHARP_NAMES.indexOf(letter);
     const pc = (naturalPc-1+12)%12;
-    cells.push({label:letter+"b", col:KEYSIG_LETTER_COL[letter], row:2, pc, preferSharp:false});
+    cells.push({label:letter+"b", col:KEYSIG_LETTER_COL[letter], row:3, pc, preferSharp:false});
   });
   return cells;
 }
