@@ -794,7 +794,10 @@
               <label class="checkline"><input type="checkbox" id="quizCatKeysig"> Key Signature ID</label>
             </div>
             <div id="quizKeysigWrap" style="display:none;margin-top:8px;">
-              <label>Key signatures to include (order of fifths, flats first)</label>
+              <div class="row" style="justify-content:space-between;align-items:center;">
+                <label>Key signatures to include (order of fifths, flats first)</label>
+                <button type="button" class="ghost small-btn" id="fillFocusKeysigBtn">Use current Focus Mode set</button>
+              </div>
               <div class="pitch-grid" id="quizKeysigGrid" style="grid-template-columns:repeat(5,1fr);"></div>
             </div>
             <div class="field-title"><label>Grades this quiz applies to</label></div>
@@ -805,6 +808,12 @@
             </div>
 
             <div class="field-title"><label>Note range / pitches per instrument</label></div>
+            <p class="small" style="margin-top:-4px;">Doesn't publish or change anything — just plugs each instrument's current Focus Mode range/pitches into the fields below for the grades checked above, so you can review and adjust before saving.</p>
+            <div class="row" style="gap:8px;flex-wrap:wrap;">
+              <button type="button" class="secondary small-btn" id="fillFocusNoteIdBtn">Use current Focus Mode: Note ID</button>
+              <button type="button" class="secondary small-btn" id="fillFocusPositionBtn">Use current Focus Mode: Position ID</button>
+            </div>
+            <p class="small" id="fillFocusMsg" style="margin-top:4px;"></p>
             <select id="quizInstrumentPicker">
               <option value="trumpet">Trumpet</option>
               <option value="frenchhorn">French Horn</option>
@@ -3951,6 +3960,58 @@ document.getElementById("quizCatKeysig").addEventListener("change", e=>{
   document.getElementById("quizKeysigWrap").style.display = e.target.checked ? "block" : "none";
 });
 
+// Quiz-builder "use current Focus Mode" buttons — teacher convenience only:
+// plugs each instrument's already-configured Focus Mode range/pitches (and,
+// separately, the keysig set) into the quiz form fields so they don't have
+// to retype settings they already dialed in on the Focus tab. Never touches
+// Firestore or the focus config itself; just fills local form state, same as
+// if the teacher had set the fields by hand.
+function focusPresetMatchesGrade(cfg, grade, inst){
+  if(!cfg || !cfg.enabled) return false;
+  if(cfg.grades && cfg.grades[grade]) return true;
+  if(cfg.instruments && cfg.instruments[inst]) return true;
+  return false;
+}
+function selectedQuizGrades(){
+  const grades = [];
+  if(document.getElementById("quizGrade6").checked) grades.push(6);
+  if(document.getElementById("quizGrade7").checked) grades.push(7);
+  if(document.getElementById("quizGrade8").checked) grades.push(8);
+  return grades;
+}
+function fillQuizRangesFromFocus(type){
+  const cfg = state.focusSettings && state.focusSettings[type];
+  const msg = document.getElementById("fillFocusMsg");
+  if(!cfg || !cfg.enabled){ msg.textContent = `Focus Mode isn't turned on for ${MODE_LABELS[type]} yet — nothing to pull in.`; return; }
+  const grades = selectedQuizGrades();
+  const filled = [];
+  INSTRUMENT_KEYS.forEach(inst=>{
+    const matches = grades.length ? grades.some(g=>focusPresetMatchesGrade(cfg, g, inst)) : focusPresetMatchesGrade(cfg, null, inst);
+    const settings = cfg.perInstrumentSettings && cfg.perInstrumentSettings[inst];
+    if(!matches || !settings) return;
+    state.quizFormPerInstrument[inst] = {
+      minMidi: settings.minMidi, maxMidi: settings.maxMidi,
+      sharps: !!cfg.sharps, flats: !!cfg.flats,
+      pitchClasses: Object.assign({}, settings.pitchClasses || {}),
+    };
+    filled.push(CATEGORY_LABELS[inst]);
+  });
+  loadQuizInstrumentIntoForm();
+  msg.textContent = filled.length
+    ? `Filled in from Focus Mode (${MODE_LABELS[type]}) for: ${filled.join(", ")}. Check the range/pitches per instrument above before saving.`
+    : `None of the checked grades/instruments have Focus Mode (${MODE_LABELS[type]}) settings configured yet.`;
+}
+document.getElementById("fillFocusNoteIdBtn").addEventListener("click", ()=>fillQuizRangesFromFocus("noteid"));
+document.getElementById("fillFocusPositionBtn").addEventListener("click", ()=>fillQuizRangesFromFocus("position"));
+document.getElementById("fillFocusKeysigBtn").addEventListener("click", ()=>{
+  const cfg = state.focusSettings && state.focusSettings.keysig;
+  const msg = document.getElementById("fillFocusMsg");
+  if(!cfg || !cfg.enabled){ msg.textContent = "Focus Mode isn't turned on for Key Signature ID yet — nothing to pull in."; return; }
+  const keySignatures = cfg.keySignatures || KEYSIG_FIFTHS_ORDER.slice();
+  document.querySelectorAll(".quizKeysigCheck").forEach(cb=>{ cb.checked = keySignatures.includes(cb.value); });
+  msg.textContent = "Filled in the key signature set from Focus Mode (Key Signature ID).";
+});
+
 document.getElementById("showQuizBuilderBtn").addEventListener("click", ()=>{
   resetQuizBuilderForm();
   document.getElementById("quizBuilderCol").style.display = "block";
@@ -4014,6 +4075,7 @@ function resetQuizBuilderForm(){
   document.getElementById("quizCatNoteId").checked = true; document.getElementById("quizCatFingering").checked = true; document.getElementById("quizCatKeysig").checked = false;
   document.getElementById("quizGrade6").checked = true; document.getElementById("quizGrade7").checked = true; document.getElementById("quizGrade8").checked = true;
   document.getElementById("quizKeysigWrap").style.display = "none";
+  document.getElementById("fillFocusMsg").textContent = "";
   state.quizFormPerInstrument = {};
   state.quizFormInstrument = "trombone";
   document.getElementById("quizInstrumentPicker").value = "trombone";
