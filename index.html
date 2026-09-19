@@ -1484,6 +1484,21 @@ document.getElementById("teacherContinueBtn").addEventListener("click", ()=>{
 });
 document.getElementById("pinBackBtn").addEventListener("click", ()=>{ showScreen("loginScreen"); });
 document.getElementById("pinInput").addEventListener("keydown", e=>{ if(e.key==="Enter") document.getElementById("pinSubmitBtn").click(); });
+// Refreshing the page used to always drop a teacher back to a blank login
+// screen — remembering which teacher is currently signed in (not the PIN
+// itself, just who) lets a refresh return straight to the dashboard
+// instead. PIN-gated actions (quiz deletion, promotion, changing PINs)
+// still separately re-check the real PIN via getEffectiveTeacher, so this
+// only saves re-typing it to open the dashboard itself.
+function enterTeacherDashboard(username, teacher){
+  state.teacherUsername = username;
+  state.teacherSchool = teacher.school;
+  state.teacherLabel = teacher.label;
+  state.teacherViewOnly = !!teacher.viewOnly;
+  state.teacherRestrictedView = teacher.restrictedView || null;
+  try{ localStorage.setItem("bt_teacherSession", username); }catch(e){ /* private browsing etc — session just won't survive a refresh */ }
+  openDashboard();
+}
 document.getElementById("pinSubmitBtn").addEventListener("click", async ()=>{
   const val = document.getElementById("pinInput").value.trim();
   const msg = document.getElementById("pinMsg");
@@ -1493,14 +1508,18 @@ document.getElementById("pinSubmitBtn").addEventListener("click", async ()=>{
   submitBtn.disabled = false;
   if(teacher && val === teacher.pin){
     msg.textContent = "";
-    state.teacherUsername = pendingTeacherUsername;
-    state.teacherSchool = teacher.school;
-    state.teacherLabel = teacher.label;
-    state.teacherViewOnly = !!teacher.viewOnly;
-    state.teacherRestrictedView = teacher.restrictedView || null;
-    openDashboard();
+    enterTeacherDashboard(pendingTeacherUsername, teacher);
   } else { msg.textContent = "Incorrect PIN."; }
 });
+
+(async function resumeTeacherSession(){
+  let savedUsername = null;
+  try{ savedUsername = localStorage.getItem("bt_teacherSession"); }catch(e){ return; }
+  if(!savedUsername || !TEACHERS[savedUsername]) return;
+  const teacher = await getEffectiveTeacher(savedUsername);
+  if(!teacher) return;
+  enterTeacherDashboard(savedUsername, teacher);
+})();
 
 /* ================================================================
    STUDENT VIEW (teacher preview — no writes, sample data only)
@@ -1591,6 +1610,9 @@ function logout(){
   }
   state.username = null; state.activeQuiz = null; state.quizId = null; state.quizIsGraded = false;
   state.teacherUsername = null; state.teacherSchool = null; state.teacherLabel = null;
+  state.teacherViewOnly = false; state.teacherRestrictedView = null;
+  document.body.classList.remove("view-only", "restricted-view");
+  try{ localStorage.removeItem("bt_teacherSession"); }catch(e){}
   clearRoundTimer();
   firstNameInput.value = localStorage.getItem("bt_firstName") || "";
   lastNameInput.value = localStorage.getItem("bt_lastName") || "";
