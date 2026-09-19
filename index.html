@@ -941,7 +941,7 @@
 <div class="drawer-back" id="csvModalBack">
   <div class="drawer" style="max-width:420px;">
     <div class="row" style="justify-content:space-between;"><h2>Export CSV</h2><button class="ghost" id="closeCsvModal">Close</button></div>
-    <p class="small" style="margin-top:6px;">One row per student: name, grade, instrument, and averaged summary stats — no raw question-by-question data.</p>
+    <p class="small" style="margin-top:6px;">One row per student. Each quiz you pick gets its own column — quizzes are never averaged together.</p>
     <label style="margin-top:10px;">Grade(s) to include</label>
     <div class="checkline-row"><label class="checkline"><input type="checkbox" class="csvGrade" value="6" checked> 6</label><label class="checkline"><input type="checkbox" class="csvGrade" value="7" checked> 7</label><label class="checkline"><input type="checkbox" class="csvGrade" value="8" checked> 8</label></div>
     <label style="margin-top:10px;">Quiz(zes) to include</label>
@@ -4556,7 +4556,7 @@ document.getElementById("promoteFinalBtn").addEventListener("click", async ()=>{
 });
 
 /* ================================================================
-   22. CSV EXPORT — one concise row per student, averaged summary only
+   22. CSV EXPORT — one row per student; each selected quiz gets its own column
    ================================================================ */
 document.getElementById("exportCsvBtn").addEventListener("click", ()=>{
   const sel = document.getElementById("csvQuizSelect");
@@ -4577,32 +4577,33 @@ document.getElementById("runCsvExportBtn").addEventListener("click", async ()=>{
   const grades = Array.from(document.querySelectorAll(".csvGrade:checked")).map(cb=>parseInt(cb.value,10));
   const rows = state.dashData.filter(r=> grades.length===0 || grades.includes(parseInt(r.grade,10)));
   const studentsById = {}; state.allStudents.forEach(s=>studentsById[s.id]=s);
-  const selectedQuizIds = Array.from(document.getElementById("csvQuizSelect").selectedOptions).map(o=>o.value);
+  const selectedQuizzes = state.quizzesCache.filter(q=>Array.from(document.getElementById("csvQuizSelect").selectedOptions).some(o=>o.value===q.id));
 
-  // Quiz averages per student, restricted to the selected quizzes
+  // Each selected quiz gets its own column (best attempt), never averaged together
   let quizByStudent = {};
   try{
-    for(const q of state.quizzesCache){
-      if(!selectedQuizIds.includes(q.id)) continue;
+    for(const q of selectedQuizzes){
       const snap = await db.collection("quizzes").doc(q.id).collection("results").get();
       snap.forEach(doc=>{
         const d = doc.data();
         const attempts = d.attempts || [];
         const best = attempts.reduce((m,a)=> Math.max(m, a.total ? a.score/a.total : 0), 0);
-        if(!quizByStudent[doc.id]) quizByStudent[doc.id] = [];
-        quizByStudent[doc.id].push(best);
+        if(!quizByStudent[doc.id]) quizByStudent[doc.id] = {};
+        quizByStudent[doc.id][q.id] = Math.round(best*100);
       });
     }
   }catch(err){ console.error("Couldn't load quiz data for export", err); }
 
-  const header = ["First Name","Last Name","Grade","Instrument","Total Questions Answered","Overall Practice %","Note ID %","Position ID %","Key Signature ID %","Note Construction %","Additional Instrument %","Quiz Average %"];
-  const lines = [header.join(",")];
+  const header = ["First","Last","Grade","Instr","Answered","Practice %",
+    "Note ID %","Note ID #","Position %","Position #","Key Sig %","Key Sig #","Constr %","Constr #","Other Instr %","Other Instr #",
+    ...selectedQuizzes.map(q=>q.name)];
+  const lines = [header.map(csvEscape).join(",")];
 
   function typeAccFor(r, exerciseType){
     const entries = Object.entries(r.byQuestion || {}).filter(([k])=>parseQKey(k).exerciseType===exerciseType);
     const answered = entries.reduce((s,[,v])=>s+v.answered,0);
     const correct = entries.reduce((s,[,v])=>s+v.correct,0);
-    return answered ? Math.round(correct/answered*100) : "";
+    return {pct: answered ? Math.round(correct/answered*100) : "", frac: answered ? `${correct}/${answered}` : ""};
   }
 
   rows.forEach(r=>{
@@ -4612,8 +4613,9 @@ document.getElementById("runCsvExportBtn").addEventListener("click", async ()=>{
     const otherAnswered = otherEntries.reduce((sum,v)=>sum+v.answered,0);
     const otherCorrect = otherEntries.reduce((sum,v)=>sum+v.correct,0);
     const otherPct = otherAnswered ? Math.round(otherCorrect/otherAnswered*100) : "";
-    const quizScores = quizByStudent[r.username] || [];
-    const quizAvg = quizScores.length ? Math.round(quizScores.reduce((a,b)=>a+b,0)/quizScores.length*100) : "";
+    const otherFrac = otherAnswered ? `${otherCorrect}/${otherAnswered}` : "";
+    const noteId = typeAccFor(r,"noteid"), position = typeAccFor(r,"position"), keysig = typeAccFor(r,"keysig"), construction = typeAccFor(r,"construction");
+    const quizScores = quizByStudent[r.username] || {};
 
     lines.push([
       s.firstName || r.displayName.split(" ")[0] || "",
@@ -4622,9 +4624,9 @@ document.getElementById("runCsvExportBtn").addEventListener("click", async ()=>{
       r.primaryInstrument ? CATEGORY_LABELS[r.primaryInstrument] : "",
       r.totalAnswered,
       r.accuracy===null ? "" : r.accuracy,
-      typeAccFor(r,"noteid"), typeAccFor(r,"position"), typeAccFor(r,"keysig"), typeAccFor(r,"construction"),
-      otherPct,
-      quizAvg
+      noteId.pct, noteId.frac, position.pct, position.frac, keysig.pct, keysig.frac, construction.pct, construction.frac,
+      otherPct, otherFrac,
+      ...selectedQuizzes.map(q=> quizScores[q.id]===undefined ? "" : quizScores[q.id])
     ].map(csvEscape).join(","));
   });
 
