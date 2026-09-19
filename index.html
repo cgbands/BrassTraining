@@ -331,12 +331,14 @@
         "grade inst"
         "pin pin"
         "actions actions";
-      border-radius:var(--radius-sm);border:1px solid var(--line);margin-bottom:10px;padding:14px;
+      gap:6px;
+      border-radius:var(--radius-sm);border:1px solid var(--line);margin-bottom:6px;padding:9px 10px;
     }
     .mgmt-row:last-child{margin-bottom:0;}
-    .mgmt-user{color:var(--ink-soft);font-size:12px;}
-    .mgmt-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px;}
-    .mgmt-actions button{width:100%;margin:0;}
+    .mgmt-row input, .mgmt-row select{padding:6px 8px;font-size:12.5px;}
+    .mgmt-user{color:var(--ink-soft);font-size:11.5px;}
+    .mgmt-actions{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:2px;}
+    .mgmt-actions button{width:100%;margin:0;padding:6px 8px;font-size:11.5px;}
   }
   @media (max-width:520px){
     .stat-row{flex-direction:column;}
@@ -607,6 +609,32 @@
     <p class="small" id="resourceViewerDesc" style="margin:6px 0;"></p>
     <p class="small" id="resourceViewerBlockedHint" style="display:none;margin:0 0 6px;color:var(--ink-soft);">If this doesn't load below, the site doesn't allow being shown inside another page — use "Open in new tab" instead.</p>
     <iframe id="resourceViewerFrame" style="flex:1;width:100%;border:1px solid var(--line);border-radius:var(--radius-sm);background:#fff;" title="Resource content" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+  </div>
+</div>
+
+<!-- ================= ADD TO HOME SCREEN GUIDE (pop-up) ================= -->
+<div class="drawer-back" id="installGuideModalBack">
+  <div class="drawer" style="max-width:560px;width:96%;">
+    <div class="row" style="justify-content:space-between;align-items:center;">
+      <h2 style="margin:0;">Add to Home Screen</h2>
+      <button class="ghost small-btn" id="closeInstallGuide">Close</button>
+    </div>
+    <p class="small" style="margin-top:4px;">Adding this app to your Home Screen makes it open like a regular app — full screen, one tap, no need to find it in a browser tab.</p>
+    <h3 style="margin:16px 0 6px;">iPhone / iPad (Safari)</h3>
+    <ol style="margin:0 0 0 18px;padding:0;font-size:14px;line-height:1.7;">
+      <li>Open this site in <strong>Safari</strong> (this must be Safari, not Chrome).</li>
+      <li>Tap the <strong>Share</strong> button (the square with an arrow pointing up), usually at the bottom of the screen.</li>
+      <li>Scroll down and tap <strong>Add to Home Screen</strong>.</li>
+      <li>Tap <strong>Add</strong> in the top-right corner.</li>
+    </ol>
+    <h3 style="margin:16px 0 6px;">Android (Chrome)</h3>
+    <ol style="margin:0 0 0 18px;padding:0;font-size:14px;line-height:1.7;">
+      <li>Open this site in <strong>Chrome</strong>.</li>
+      <li>Tap the <strong>⋮</strong> menu (three dots) in the top-right corner.</li>
+      <li>Tap <strong>Add to Home screen</strong>.</li>
+      <li>Tap <strong>Add</strong>, then <strong>Add</strong> again to confirm.</li>
+    </ol>
+    <p class="small" style="margin-top:14px;">Once added, look for the icon on your Home Screen and open it from there next time.</p>
   </div>
 </div>
 
@@ -3176,8 +3204,16 @@ async function openResourcesScreen(){
       if(resourceAppliesToStudent(r)) matches.push(r);
     });
     matches.sort((a,b)=> (a.type||"").localeCompare(b.type||"") || a.title.localeCompare(b.title));
-    document.getElementById("resourcesEmpty").style.display = matches.length ? "none" : "block";
-    document.getElementById("resourcesSubtitle").textContent = matches.length ? `${matches.length} resource${matches.length===1?"":"s"} for you` : "Nothing here yet";
+    document.getElementById("resourcesEmpty").style.display = "none";
+    document.getElementById("resourcesSubtitle").textContent = matches.length ? `${matches.length} resource${matches.length===1?"":"s"} for you` : "Nothing posted yet";
+    // Always-present entry, not stored in Firestore — every student should
+    // be able to find this regardless of what a teacher has posted.
+    const installItem = document.createElement("div");
+    installItem.className = "quiz-list-item";
+    installItem.style.cursor = "pointer";
+    installItem.innerHTML = `<div class="qname">📱 Add this app to your Home Screen</div><div class="small">Step-by-step guide for iPhone &amp; Android</div>`;
+    installItem.addEventListener("click", ()=> document.getElementById("installGuideModalBack").classList.add("active"));
+    listEl.appendChild(installItem);
     matches.forEach(r=>{
       const item = document.createElement("div");
       item.className = "quiz-list-item";
@@ -3226,6 +3262,9 @@ function openResourceViewer(r){
 document.getElementById("closeResourceViewer").addEventListener("click", ()=>{
   document.getElementById("resourceViewerModalBack").classList.remove("active");
   document.getElementById("resourceViewerFrame").src = "about:blank"; // stop any embedded video/audio from continuing in the background
+});
+document.getElementById("closeInstallGuide").addEventListener("click", ()=>{
+  document.getElementById("installGuideModalBack").classList.remove("active");
 });
 
 /* ================================================================
