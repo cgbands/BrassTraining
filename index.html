@@ -845,16 +845,18 @@
     <div class="tab-panel" id="tab-resources">
       <p class="small" style="margin-bottom:12px;">Links students see on their own Resources page — fingering charts, study guides for a quiz, videos, anything you want to point them to. Opens for them as a pop-up inside the app when possible; some sites don't allow that and will just offer "Open in new tab" instead.</p>
 
-      <div class="card" style="max-width:none;margin-bottom:14px;">
-        <div class="field-title"><label>Hide the Resources button entirely for these grades</label></div>
-        <p class="small" style="margin-top:-4px;">Independent of any individual resource's targeting below — this turns off the whole Resources page for everyone in a grade.</p>
-        <div class="checkline-row" id="resourceHideByGradeChecks"><p class="small">Loading…</p></div>
-      </div>
+      <div class="row" style="gap:14px;align-items:stretch;flex-wrap:wrap;margin-bottom:14px;">
+        <div class="card" style="max-width:none;flex:1;min-width:260px;margin:0;">
+          <div class="field-title"><label>Hide the Resources button entirely for these grades</label></div>
+          <p class="small" style="margin-top:-4px;">Independent of any individual resource's targeting below — this turns off the whole Resources page for everyone in a grade.</p>
+          <div class="checkline-row" id="resourceHideByGradeChecks"><p class="small">Loading…</p></div>
+        </div>
 
-      <div class="card" style="max-width:none;margin-bottom:14px;">
-        <div class="field-title"><label>Check what a specific student sees</label></div>
-        <select id="resourceCheckStudentSelect"><option value="">Choose a student…</option></select>
-        <div id="resourceCheckStudentResult" style="margin-top:8px;"></div>
+        <div class="card" style="max-width:none;flex:1;min-width:260px;margin:0;">
+          <div class="field-title"><label>Check what a specific student sees</label></div>
+          <select id="resourceCheckStudentSelect"><option value="">Choose a student…</option></select>
+          <div id="resourceCheckStudentResult" style="margin-top:8px;"></div>
+        </div>
       </div>
 
       <div class="builder-cols">
@@ -2600,11 +2602,10 @@ function buildKeySigQuestion(){
     exerciseType:"keysig", instrument: state.instrument,
     qKey: "keysig_"+state.instrument+"_"+concertKey.name,
     concertKey, writtenKey: written,
-    // Always the concert-pitch key name — the staff shows the key signature
-    // as it's written for the student's instrument, but the answer is
-    // always what that signature actually sounds in concert pitch, not the
-    // transposed name (which, for trumpet/horn, is never one of the answer
-    // grid's own concert-key options anyway).
+    // The staff draws the concert-pitch key signature directly (not
+    // transposed for the student's instrument) — this drill is about
+    // reading a key signature in concert pitch, not about mentally
+    // transposing one, so what's on the page always matches the answer.
     correctAnswer: concertKey.name,
     correctLabel: isTransposing ? (concertKey.name + " concert (written as " + written.name + " on " + INSTRUMENTS[state.instrument].label + ")") : concertKey.name,
   };
@@ -2734,11 +2735,14 @@ function valvesEqual(a,b){
   return !!a.v1===!!b.v1 && !!a.v2===!!b.v2 && !!a.v3===!!b.v3 && !!(a.trigger)===!!(b.trigger);
 }
 
-function startPractice(){
-  state.bags = {};
+function updatePracticeModeLabel(){
   const isTransposingKeysig = state.mode === "keysig" && TRANSPOSE_SEMITONES[state.instrument] !== 0;
   document.getElementById("practiceModeLabel").textContent = MODE_LABELS[state.mode] + " — " + currentInstrument().label
     + (isTransposingKeysig ? " (answer in Concert Pitch, not " + currentInstrument().label + " pitch)" : "");
+}
+function startPractice(){
+  state.bags = {};
+  updatePracticeModeLabel();
   document.getElementById("quizBanner").style.display = state.quizId ? "block" : "none";
   if(state.quizId){
     document.getElementById("quizBanner").textContent = state.quizIsGraded
@@ -2792,6 +2796,7 @@ function nextQuestion(){
     mode = state.activeQuiz.categories[0];
   }
   state.mode = mode;
+  updatePracticeModeLabel();
 
   let q;
   if(mode === "noteid") q = buildNoteIdQuestion(pool);
@@ -2806,7 +2811,7 @@ function nextQuestion(){
   document.getElementById("constructionContainer").style.display = "none";
   document.getElementById("constructionTargetLabel").style.display = "none";
   document.getElementById("constructionControls").style.display = "none";
-  if(mode === "keysig") renderKeySignatureOnly(q.writtenKey.name, currentInstrument().clef);
+  if(mode === "keysig") renderKeySignatureOnly(q.concertKey.name, currentInstrument().clef);
   else if(mode === "construction") renderConstructionStaff(q);
   else renderStaffNote(q.midi, q.accidentalSymbol, currentInstrument().clef);
 
