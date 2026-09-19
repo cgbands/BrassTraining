@@ -236,6 +236,7 @@
   .tab-btn{background:none;border:none;color:var(--ink-soft);padding:9px 10px;margin-right:4px;font-size:13.5px;font-weight:600;border-bottom:3px solid transparent;white-space:nowrap;border-radius:10px 10px 0 0;transition:background .15s ease;}
   .tab-btn:hover{background:rgba(230,57,70,0.06);}
   .tab-btn.active{color:var(--ink);border-color:var(--red);}
+  .tab-abbr{display:none;}
   .tab-panel{display:none;}
   .tab-panel.active{display:block;}
   .stat-row{display:flex;gap:12px;margin-bottom:18px;flex-wrap:wrap;}
@@ -342,6 +343,11 @@
     .mgmt-actions button{width:100%;margin:0;padding:6px 8px;font-size:11.5px;}
   }
   @media (max-width:520px){
+    #dashTabs{flex-wrap:wrap;overflow-x:visible;border-bottom:none;gap:6px;}
+    #dashTabs .tab-btn{flex:1 1 calc(33.333% - 6px);border:1px solid var(--line);border-radius:8px;text-align:center;margin-right:0;padding:8px 4px;font-size:12px;}
+    #dashTabs .tab-btn.active{background:rgba(230,57,70,0.08);}
+    #dashTabs .tab-full{display:none;}
+    #dashTabs .tab-abbr{display:inline;}
     .stat-row{flex-direction:column;}
     .pitch-grid{grid-template-columns:repeat(4,1fr);}
     .pitch-grid .pitch-chip{grid-column:auto !important;}
@@ -751,14 +757,14 @@
   </div>
 
   <div class="dash-wrap">
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="overview">Overview</button>
-      <button class="tab-btn" data-tab="practice">Practice Data</button>
-      <button class="tab-btn" data-tab="trouble">Trouble Spots</button>
-      <button class="tab-btn" data-tab="quizzes">Quizzes</button>
-      <button class="tab-btn" data-tab="resources">Resources</button>
-      <button class="tab-btn" data-tab="additional">Additional Instrument</button>
-      <button class="tab-btn" data-tab="management">Student Management</button>
+    <div class="tabs" id="dashTabs">
+      <button class="tab-btn active" data-tab="overview"><span class="tab-full">Overview</span><span class="tab-abbr">Overview</span></button>
+      <button class="tab-btn" data-tab="practice"><span class="tab-full">Practice Data</span><span class="tab-abbr">Practice</span></button>
+      <button class="tab-btn" data-tab="trouble"><span class="tab-full">Trouble Spots</span><span class="tab-abbr">Trouble</span></button>
+      <button class="tab-btn" data-tab="quizzes"><span class="tab-full">Quizzes</span><span class="tab-abbr">Quizzes</span></button>
+      <button class="tab-btn" data-tab="resources"><span class="tab-full">Resources</span><span class="tab-abbr">Resources</span></button>
+      <button class="tab-btn" data-tab="additional"><span class="tab-full">Additional Instrument</span><span class="tab-abbr">Addl. Inst.</span></button>
+      <button class="tab-btn" data-tab="management"><span class="tab-full">Student Management</span><span class="tab-abbr">Students</span></button>
     </div>
 
     <!-- OVERVIEW -->
