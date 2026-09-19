@@ -282,6 +282,11 @@
   .quiz-status.scheduled{background:var(--gold);border-color:var(--gold);color:#221414;}
   .quiz-status.closed{background:transparent;color:var(--ink-soft);}
 
+  .resource-category-head{font-family:'Fraunces',serif;font-size:14px;font-weight:700;margin:20px 0 8px;color:var(--ink);}
+  .resource-category-head:first-child{margin-top:0;}
+  .resource-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+  .resource-tag{display:inline-block;padding:2px 9px;font-size:11px;border:1px solid var(--line);border-radius:20px;color:var(--ink-soft);background:var(--paper);}
+
   .stepper{display:flex;align-items:center;gap:10px;margin:14px 0;}
   .stepper .dot{width:22px;height:22px;border-radius:50%;background:var(--line);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;}
   .stepper .dot.active{background:var(--red);}
@@ -4344,39 +4349,48 @@ async function loadResources(){
     // teachers see and manage every resource at their school, same as
     // they always could before restricted-view teachers existed.
     const visible = state.teacherRestrictedView ? state.resourcesCache.filter(r=>r.createdBy===state.teacherUsername) : state.resourcesCache;
-    visible.sort((a,b)=> (b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0) - (a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0));
     document.getElementById("resourceEmpty").style.display = visible.length ? "none" : "block";
-    visible.forEach(r=>{
-      const item = document.createElement("div");
-      item.className = "quiz-list-item";
-      const gradesTxt = (r.grades||[]).length ? "Grade: " + [...r.grades].sort((a,b)=>a-b).join(", ") : null;
-      const instTxt = (r.instruments||[]).length ? "Ins: " + INSTRUMENT_ABBR_ORDER.filter(k=>r.instruments.includes(k)).map(k=>INSTRUMENT_ABBR[k]).join(", ") : null;
-      const targetSummary = (gradesTxt && instTxt) ? `${gradesTxt} · ${instTxt}` : (gradesTxt || instTxt || "no grade/instrument targets set — student overrides only");
-      // A resource saved back when this was OR-based (grade only, or
-      // instrument only, no student overrides either) now matches nobody
-      // under the AND rule — flag it visibly instead of letting it silently
-      // stop reaching anyone.
-      const onlyOneSideSet = (!!gradesTxt) !== (!!instTxt);
-      const overrideCount = Object.keys(r.studentOverrides||{}).length;
-      item.innerHTML = `
-        <div class="qname">${r.title} <span class="quiz-status ${r.archived?'closed':'open'}">${r.archived?'Hidden from students':'Visible'}</span>${onlyOneSideSet ? ' <span class="quiz-status closed">⚠ needs both grade + instrument</span>' : ''}</div>
-        <div class="small">${r.type||"General"} · ${targetSummary}${overrideCount?` · ${overrideCount} student override${overrideCount===1?'':'s'}`:''}</div>
-        <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap;">
-          <button class="ghost small-btn" data-action="edit">Edit</button>
-          <button class="ghost small-btn" data-action="publish">${r.archived ? "Show to students" : "Hide from students"}</button>
-          <button class="ghost small-btn" data-action="delete" style="color:var(--red-dark);">Delete</button>
-        </div>`;
-      item.querySelector('[data-action="edit"]').addEventListener("click", ()=>loadResourceForEditing(r));
-      item.querySelector('[data-action="publish"]').addEventListener("click", async ()=>{
-        await db.collection("resources").doc(r.id).update({archived: !r.archived});
-        await loadResources();
+    // Group by category, categories in alphabetical order, and each
+    // category's resources alphabetized by title within it.
+    const groups = {};
+    visible.forEach(r=> (groups[r.type||"General"] = groups[r.type||"General"] || []).push(r));
+    Object.keys(groups).sort((a,b)=>a.localeCompare(b)).forEach(cat=>{
+      const head = document.createElement("div");
+      head.className = "resource-category-head";
+      head.textContent = cat;
+      listEl.appendChild(head);
+      groups[cat].sort((a,b)=>(a.title||"").localeCompare(b.title||"")).forEach(r=>{
+        const item = document.createElement("div");
+        item.className = "quiz-list-item";
+        const gradeTags = [...(r.grades||[])].sort((a,b)=>a-b).map(g=>`<span class="resource-tag">Grade ${g}</span>`).join("");
+        const instTags = INSTRUMENT_ABBR_ORDER.filter(k=>(r.instruments||[]).includes(k)).map(k=>`<span class="resource-tag">${INSTRUMENT_ABBR[k]}</span>`).join("");
+        // A resource saved back when this was OR-based (grade only, or
+        // instrument only, no student overrides either) now matches nobody
+        // under the AND rule — flag it visibly instead of letting it silently
+        // stop reaching anyone.
+        const onlyOneSideSet = (!!(r.grades||[]).length) !== (!!(r.instruments||[]).length);
+        const overrideCount = Object.keys(r.studentOverrides||{}).length;
+        item.innerHTML = `
+          <div class="qname">${r.title} <span class="quiz-status ${r.archived?'closed':'open'}">${r.archived?'Hidden from students':'Visible'}</span>${onlyOneSideSet ? ' <span class="quiz-status closed">⚠ needs both grade + instrument</span>' : ''}</div>
+          ${(gradeTags || instTags) ? `<div class="resource-tags">${gradeTags}${instTags}</div>` : `<div class="small">no grade/instrument targets set — student overrides only</div>`}
+          ${overrideCount ? `<div class="small">${overrideCount} student override${overrideCount===1?'':'s'}</div>` : ''}
+          <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap;">
+            <button class="ghost small-btn" data-action="edit">Edit</button>
+            <button class="ghost small-btn" data-action="publish">${r.archived ? "Show to students" : "Hide from students"}</button>
+            <button class="ghost small-btn" data-action="delete" style="color:var(--red-dark);">Delete</button>
+          </div>`;
+        item.querySelector('[data-action="edit"]').addEventListener("click", ()=>loadResourceForEditing(r));
+        item.querySelector('[data-action="publish"]').addEventListener("click", async ()=>{
+          await db.collection("resources").doc(r.id).update({archived: !r.archived});
+          await loadResources();
+        });
+        item.querySelector('[data-action="delete"]').addEventListener("click", async ()=>{
+          if(!confirm(`Delete "${r.title}"? This can't be undone.`)) return;
+          await db.collection("resources").doc(r.id).delete();
+          await loadResources();
+        });
+        listEl.appendChild(item);
       });
-      item.querySelector('[data-action="delete"]').addEventListener("click", async ()=>{
-        if(!confirm(`Delete "${r.title}"? This can't be undone.`)) return;
-        await db.collection("resources").doc(r.id).delete();
-        await loadResources();
-      });
-      listEl.appendChild(item);
     });
   }catch(err){
     console.error("loadResources failed:", err);
