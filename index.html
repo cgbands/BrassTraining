@@ -846,13 +846,13 @@
       <p class="small" style="margin-bottom:12px;">Links students see on their own Resources page — fingering charts, study guides for a quiz, videos, anything you want to point them to. Opens for them as a pop-up inside the app when possible; some sites don't allow that and will just offer "Open in new tab" instead.</p>
 
       <div class="row" style="gap:14px;align-items:stretch;flex-wrap:wrap;margin-bottom:14px;">
-        <div class="card" style="max-width:none;flex:1;min-width:260px;margin:0;">
+        <div class="card" style="max-width:none;flex:1;min-width:210px;margin:0;">
           <div class="field-title"><label>Hide the Resources button entirely for these grades</label></div>
           <p class="small" style="margin-top:-4px;">Independent of any individual resource's targeting below — this turns off the whole Resources page for everyone in a grade.</p>
           <div class="checkline-row" id="resourceHideByGradeChecks"><p class="small">Loading…</p></div>
         </div>
 
-        <div class="card" style="max-width:none;flex:1;min-width:260px;margin:0;">
+        <div class="card" style="max-width:none;flex:1;min-width:210px;margin:0;">
           <div class="field-title"><label>Check what a specific student sees</label></div>
           <select id="resourceCheckStudentSelect"><option value="">Choose a student…</option></select>
           <div id="resourceCheckStudentResult" style="margin-top:8px;"></div>
@@ -2737,9 +2737,15 @@ function valvesEqual(a,b){
 }
 
 function updatePracticeModeLabel(){
-  const isTransposingKeysig = state.mode === "keysig" && TRANSPOSE_SEMITONES[state.instrument] !== 0;
-  document.getElementById("practiceModeLabel").textContent = MODE_LABELS[state.mode] + " — " + currentInstrument().label
-    + (isTransposingKeysig ? " (answer in Concert Pitch, not " + currentInstrument().label + " pitch)" : "");
+  // Key Signature ID always draws the staff in concert pitch and grades
+  // against that same concert-pitch name (see buildKeySigQuestion) — a
+  // trumpet/horn player answers exactly what's on the page, no mental
+  // transposition needed. This used to say "(answer in Concert Pitch, not
+  // Trumpet pitch)" back when the staff showed the transposed written key
+  // instead; that instruction is stale now and was actively misleading
+  // trumpet/horn players into transposing an answer that was already
+  // correct as shown, so it's been dropped.
+  document.getElementById("practiceModeLabel").textContent = MODE_LABELS[state.mode] + " — " + currentInstrument().label;
 }
 function startPractice(){
   state.bags = {};
@@ -3124,11 +3130,34 @@ async function openResourcesScreen(){
     document.getElementById("resourcesSubtitle").textContent = "Couldn't load resources: " + (err.message || err.code || "unknown error");
   }
 }
+// youtube.com/watch and youtu.be links refuse to load in an iframe at all
+// (YouTube's watch page sends X-Frame-Options/CSP denying embedding) — only
+// the separate youtube.com/embed/<id> URL is embeddable. Detect the common
+// link shapes a teacher would actually paste and rewrite to that form; any
+// URL that doesn't match passes through unchanged.
+function toEmbeddableUrl(url){
+  try{
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, "");
+    let videoId = null;
+    if(host === "youtu.be"){
+      videoId = u.pathname.slice(1).split("/")[0];
+    } else if(host === "youtube.com" || host === "m.youtube.com"){
+      if(u.pathname === "/watch") videoId = u.searchParams.get("v");
+      else if(u.pathname.startsWith("/shorts/")) videoId = u.pathname.split("/")[2];
+      else if(u.pathname.startsWith("/live/")) videoId = u.pathname.split("/")[2];
+    }
+    if(!videoId) return url;
+    const start = u.searchParams.get("t") || u.searchParams.get("start");
+    const startSeconds = start ? parseInt(start, 10) : 0;
+    return "https://www.youtube.com/embed/" + videoId + (startSeconds ? ("?start=" + startSeconds) : "");
+  }catch(e){ return url; }
+}
 function openResourceViewer(r){
   document.getElementById("resourceViewerTitle").textContent = r.title;
   document.getElementById("resourceViewerDesc").textContent = r.description || "";
   document.getElementById("resourceViewerOpenNew").href = r.url;
-  document.getElementById("resourceViewerFrame").src = r.url;
+  document.getElementById("resourceViewerFrame").src = toEmbeddableUrl(r.url);
   document.getElementById("resourceViewerModalBack").classList.add("active");
 }
 document.getElementById("closeResourceViewer").addEventListener("click", ()=>{
