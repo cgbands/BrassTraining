@@ -4257,7 +4257,13 @@ document.getElementById("saveResourceBtn").addEventListener("click", async ()=>{
     await loadResources();
     msg.style.color = "var(--forest)";
     msg.textContent = "Saved.";
-  }catch(err){ console.error(err); msg.textContent = "Couldn't save — check your connection."; }
+  }catch(err){
+    console.error(err);
+    // "Check your connection" was hiding permission-denied errors (a
+    // Firestore rules issue, not a network one) behind a misleading
+    // message — show what actually happened instead.
+    msg.textContent = "Couldn't save: " + (err.message || err.code || "unknown error");
+  }
 });
 
 // Restricted-view teachers can only toggle a "whole" grade here (same rule
