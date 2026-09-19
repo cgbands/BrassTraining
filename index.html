@@ -2645,6 +2645,8 @@ function renderKeySignatureOnly(keyName, clef){
    ================================================================ */
 const MODE_LABELS = {noteid:"Note ID", position:"Position ID", keysig:"Key Signature ID", construction:"Note Construction"};
 const CATEGORY_LABELS = {trombone:"Trombone", baritone:"Baritone", tuba:"Tuba", trumpet:"Trumpet", frenchhorn:"French Horn"};
+const INSTRUMENT_ABBR = {trumpet:"Tpt", frenchhorn:"FHn", trombone:"Tbn", baritone:"Btn", tuba:"Tba"};
+const INSTRUMENT_ABBR_ORDER = ["trumpet","frenchhorn","trombone","baritone","tuba"];
 
 function prettyCategory(cat){
   if(cat.startsWith("noteid_")) return "Note ID · " + (CATEGORY_LABELS[cat.slice(7)] || cat.slice(7));
@@ -4347,9 +4349,9 @@ async function loadResources(){
     visible.forEach(r=>{
       const item = document.createElement("div");
       item.className = "quiz-list-item";
-      const gradesTxt = (r.grades||[]).length ? "grades " + r.grades.join(",") : null;
-      const instTxt = (r.instruments||[]).length ? (r.instruments||[]).map(k=>CATEGORY_LABELS[k]).join(", ") : null;
-      const targetSummary = (gradesTxt && instTxt) ? `${gradesTxt} AND ${instTxt}` : (gradesTxt || instTxt || "no grade/instrument targets set — student overrides only");
+      const gradesTxt = (r.grades||[]).length ? "Grade: " + [...r.grades].sort((a,b)=>a-b).join(", ") : null;
+      const instTxt = (r.instruments||[]).length ? "Ins: " + INSTRUMENT_ABBR_ORDER.filter(k=>r.instruments.includes(k)).map(k=>INSTRUMENT_ABBR[k]).join(", ") : null;
+      const targetSummary = (gradesTxt && instTxt) ? `${gradesTxt} · ${instTxt}` : (gradesTxt || instTxt || "no grade/instrument targets set — student overrides only");
       // A resource saved back when this was OR-based (grade only, or
       // instrument only, no student overrides either) now matches nobody
       // under the AND rule — flag it visibly instead of letting it silently
