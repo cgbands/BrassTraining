@@ -18,6 +18,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://unpkg.com/vexflow@1.2.93/releases/vexflow-min.js"></script>
+<script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <style>
   :root{
@@ -663,7 +664,7 @@
     <div class="row">
       <button class="secondary" id="refreshBtn">Refresh</button>
       <button class="secondary" id="studentViewBtn">Student View</button>
-      <button class="secondary" id="exportCsvBtn">Export CSV</button>
+      <button class="secondary" id="exportCsvBtn">Export Excel</button>
       <button class="ghost" id="logoutFromDash">Log out</button>
     </div>
   </div>
@@ -1065,7 +1066,7 @@
 <!-- ================= CSV EXPORT MODAL ================= -->
 <div class="drawer-back" id="csvModalBack">
   <div class="drawer" style="max-width:420px;">
-    <div class="row" style="justify-content:space-between;"><h2>Export CSV</h2><button class="ghost" id="closeCsvModal">Close</button></div>
+    <div class="row" style="justify-content:space-between;"><h2>Export Excel</h2><button class="ghost" id="closeCsvModal">Close</button></div>
     <p class="small" style="margin-top:6px;">Name, Grade, Instrument, Selected Quizzes, and Practice Accuracy (Overall, Note ID, Position, Key Sig, Note Construction, Other Instrument).</p>
     <label style="margin-top:10px;">Grade(s) to include</label>
     <div class="checkline-row"><label class="checkline"><input type="checkbox" class="csvGrade" value="6" checked> 6</label><label class="checkline"><input type="checkbox" class="csvGrade" value="7" checked> 7</label><label class="checkline"><input type="checkbox" class="csvGrade" value="8" checked> 8</label></div>
@@ -5270,7 +5271,7 @@ document.getElementById("promoteFinalBtn").addEventListener("click", async ()=>{
 });
 
 /* ================================================================
-   22. CSV EXPORT — one row per student; each selected quiz gets its own column
+   22. EXCEL EXPORT — one row per student; each selected quiz gets its own column
    ================================================================ */
 document.getElementById("exportCsvBtn").addEventListener("click", ()=>{
   const sel = document.getElementById("csvQuizSelect");
@@ -5279,12 +5280,11 @@ document.getElementById("exportCsvBtn").addEventListener("click", ()=>{
 });
 document.getElementById("closeCsvModal").addEventListener("click", ()=>document.getElementById("csvModalBack").classList.remove("active"));
 
-function csvEscape(v){ const s = String(v===null||v===undefined ? "" : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; }
-function downloadCsv(filename, lines){
-  const blob = new Blob([lines.join("\n")], {type:"text/csv"});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a"); a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+function downloadXlsx(filename, aoa){
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Summary");
+  XLSX.writeFile(wb, filename);
 }
 
 document.getElementById("runCsvExportBtn").addEventListener("click", async ()=>{
@@ -5312,7 +5312,7 @@ document.getElementById("runCsvExportBtn").addEventListener("click", async ()=>{
     ...selectedQuizzes.map(q=>q.name),
     "Total Answered","Practice %",
     "Note ID %","Note ID #","Position %","Position #","Key Sig %","Key Sig #","Note Constr %","Note Constr #","Other Instr %","Other Instr #"];
-  const lines = [header.map(csvEscape).join(",")];
+  const aoa = [header];
 
   function typeAccFor(r, exerciseType){
     const entries = Object.entries(r.byQuestion || {}).filter(([k])=>parseQKey(k).exerciseType===exerciseType);
@@ -5332,7 +5332,7 @@ document.getElementById("runCsvExportBtn").addEventListener("click", async ()=>{
     const noteId = typeAccFor(r,"noteid"), position = typeAccFor(r,"position"), keysig = typeAccFor(r,"keysig"), construction = typeAccFor(r,"construction");
     const quizScores = quizByStudent[r.username] || {};
 
-    lines.push([
+    aoa.push([
       s.firstName || r.displayName.split(" ")[0] || "",
       s.lastName || r.displayName.split(" ").slice(1).join(" ") || "",
       r.grade,
@@ -5342,10 +5342,10 @@ document.getElementById("runCsvExportBtn").addEventListener("click", async ()=>{
       r.accuracy===null ? "" : r.accuracy,
       noteId.pct, noteId.frac, position.pct, position.frac, keysig.pct, keysig.frac, construction.pct, construction.frac,
       otherPct, otherFrac
-    ].map(csvEscape).join(","));
+    ]);
   });
 
-  downloadCsv("brass-training-summary-"+new Date().toISOString().slice(0,10)+".csv", lines);
+  downloadXlsx("brass-training-summary-"+new Date().toISOString().slice(0,10)+".xlsx", aoa);
   document.getElementById("csvModalBack").classList.remove("active");
 });
 
