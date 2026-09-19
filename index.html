@@ -250,6 +250,20 @@
   th:hover{color:var(--ink);}
   tr.student-row{cursor:pointer;}
   tr.student-row:hover{background:#fbeeee;}
+  /* Student Management list: CSS grid rows, not a real <table>, so the
+     whole shape (including the Actions button area) can be re-laid-out
+     for mobile via grid-template-areas instead of a table just squeezing
+     its fixed columns. */
+  .mgmt-mobile-sort{display:none;}
+  .mgmt-head, .mgmt-row{display:grid;grid-template-columns:1fr 1fr 1fr 70px 1fr 70px auto;grid-template-areas:"first last user grade inst pin actions";gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--card-bg-solid);}
+  .mgmt-head{border:1px solid var(--line);border-bottom:none;border-radius:var(--radius-sm) var(--radius-sm) 0 0;background:rgba(230,57,70,0.05);font-weight:600;font-size:11.5px;color:var(--ink-soft);}
+  .mgmt-head > div{cursor:pointer;user-select:none;}
+  .mgmt-head > div:hover{color:var(--ink);}
+  .mgmt-row{border-left:1px solid var(--line);border-right:1px solid var(--line);font-size:13px;}
+  .mgmt-row:last-child{border-bottom:1px solid var(--line);border-radius:0 0 var(--radius-sm) var(--radius-sm);}
+  .mgmt-first{grid-area:first;} .mgmt-last{grid-area:last;} .mgmt-user{grid-area:user;}
+  .mgmt-grade{grid-area:grade;} .mgmt-inst{grid-area:inst;} .mgmt-pin{grid-area:pin;}
+  .mgmt-actions{grid-area:actions;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}
   .acc-pill{display:inline-block;padding:3px 9px;font-size:11.5px;font-weight:600;border:1.5px solid transparent;border-radius:20px;}
   .acc-good{color:var(--forest);border-color:var(--forest);}
   .acc-mid{color:var(--gold);border-color:var(--gold);}
@@ -307,6 +321,22 @@
     .builder-col1{width:100%;}
     #tab-quizzes .builder-col1{width:100%;}
     .setup-side{width:100%;max-width:420px;padding-top:0;order:-1;}
+    .mgmt-mobile-sort{display:flex;}
+    .mgmt-head{display:none;}
+    .mgmt-row{
+      grid-template-columns:1fr 1fr;
+      grid-template-areas:
+        "first last"
+        "user user"
+        "grade inst"
+        "pin pin"
+        "actions actions";
+      border-radius:var(--radius-sm);border:1px solid var(--line);margin-bottom:10px;padding:14px;
+    }
+    .mgmt-row:last-child{margin-bottom:0;}
+    .mgmt-user{color:var(--ink-soft);font-size:12px;}
+    .mgmt-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px;}
+    .mgmt-actions button{width:100%;margin:0;}
   }
   @media (max-width:520px){
     .stat-row{flex-direction:column;}
@@ -956,6 +986,16 @@
       <div class="toolbar">
         <label style="margin:0;">Active students</label>
         <button class="secondary small-btn" id="showDroppedBtn">View dropped/archived students</button>
+      </div>
+      <div class="row mgmt-mobile-sort" style="gap:8px;margin-bottom:10px;">
+        <select id="mgmtSortSelect" style="flex:1;">
+          <option value="firstName">Sort: First name</option>
+          <option value="lastName">Sort: Last name</option>
+          <option value="id">Sort: Username</option>
+          <option value="grade">Sort: Grade</option>
+          <option value="primaryInstrument">Sort: Instrument</option>
+        </select>
+        <button class="ghost small-btn" id="mgmtSortDirBtn" style="flex-shrink:0;">▲ Asc</button>
       </div>
       <div id="managementWrap"></div>
 
@@ -4748,37 +4788,44 @@ function renderManagement(){
   });
 
   const wrap = document.getElementById("managementWrap");
+  document.getElementById("mgmtSortSelect").value = mgmtSortKey;
+  document.getElementById("mgmtSortDirBtn").textContent = mgmtSortDir===1 ? "▲ Asc" : "▼ Desc";
   if(!list.length){ wrap.innerHTML = `<div class="empty-state">${showingDropped ? "No dropped students match." : "No students match."}</div>`; return; }
   const sortArrow = key => key===mgmtSortKey ? (mgmtSortDir===1?" ▲":" ▼") : "";
-  let html = `<table><thead><tr>
-    <th data-mgmt-sort="firstName">First name${sortArrow("firstName")}</th>
-    <th data-mgmt-sort="lastName">Last name${sortArrow("lastName")}</th>
-    <th data-mgmt-sort="id">Username${sortArrow("id")}</th>
-    <th data-mgmt-sort="grade">Grade${sortArrow("grade")}</th>
-    <th data-mgmt-sort="primaryInstrument">Instrument${sortArrow("primaryInstrument")}</th>
-    <th>PIN</th><th>Actions</th></tr></thead><tbody>`;
+  // A CSS-grid row (not a literal <table>) so grid-template-areas can fully
+  // re-stack every row identically on mobile — a real <table> can only ever
+  // squeeze its existing columns, which is what made the Actions cell wrap
+  // its buttons unevenly row to row on a phone.
+  let html = `<div class="mgmt-head">
+    <div class="mgmt-first" data-mgmt-sort="firstName">First name${sortArrow("firstName")}</div>
+    <div class="mgmt-last" data-mgmt-sort="lastName">Last name${sortArrow("lastName")}</div>
+    <div class="mgmt-user" data-mgmt-sort="id">Username${sortArrow("id")}</div>
+    <div class="mgmt-grade" data-mgmt-sort="grade">Grade${sortArrow("grade")}</div>
+    <div class="mgmt-inst" data-mgmt-sort="primaryInstrument">Instrument${sortArrow("primaryInstrument")}</div>
+    <div class="mgmt-pin">PIN</div>
+    <div class="mgmt-actions" style="justify-content:flex-start;">Actions</div>
+  </div>`;
   list.forEach(s=>{
-    html += `<tr>
-      <td>${s.firstName||""}</td>
-      <td>${s.lastName||""}</td>
-      <td class="small">${s.id}</td>
-      <td><input type="number" min="6" max="8" value="${s.grade||""}" style="width:56px;" data-grade-edit="${s.id}"></td>
-      <td>
-        <select data-inst-edit="${s.id}">
+    html += `<div class="mgmt-row">
+      <div class="mgmt-first">${s.firstName||""}</div>
+      <div class="mgmt-last">${s.lastName||""}</div>
+      <div class="mgmt-user small">${s.id}</div>
+      <div class="mgmt-grade"><input type="number" min="6" max="8" value="${s.grade||""}" style="width:100%;" data-grade-edit="${s.id}"></div>
+      <div class="mgmt-inst">
+        <select data-inst-edit="${s.id}" style="width:100%;">
           <option value="">—</option>
           ${INSTRUMENT_KEYS.map(k=>`<option value="${k}" ${s.primaryInstrument===k?"selected":""}>${CATEGORY_LABELS[k]}</option>`).join("")}
         </select>
-      </td>
-      <td><input type="text" maxlength="4" value="${s.pin}" style="width:56px;" data-pin-edit="${s.id}"></td>
-      <td>
+      </div>
+      <div class="mgmt-pin"><input type="text" maxlength="4" value="${s.pin}" style="width:100%;" data-pin-edit="${s.id}"></div>
+      <div class="mgmt-actions">
         <button class="small-btn secondary" data-save="${s.id}">Save</button>
         <button class="small-btn secondary" data-rename="${s.id}">Change username</button>
         <button class="small-btn ${showingDropped?"secondary":""}" data-toggle-drop="${s.id}" style="${showingDropped?"":"background:var(--red-dark);border-color:var(--red-dark);"}">${showingDropped?"Restore":"Drop"}</button>
         ${showingDropped ? `<button class="small-btn" data-delete-forever="${s.id}" style="background:var(--red-dark);border-color:var(--red-dark);">Delete forever</button>` : ""}
-      </td>
-    </tr>`;
+      </div>
+    </div>`;
   });
-  html += `</tbody></table>`;
   wrap.innerHTML = html;
 
   wrap.querySelectorAll("[data-mgmt-sort]").forEach(th=>{
@@ -4832,6 +4879,14 @@ function renderManagement(){
 ["mgmtSearch","mgmtGradeFilter","mgmtInstrumentFilter"].forEach(id=>{
   document.getElementById(id).addEventListener("input", renderManagement);
   document.getElementById(id).addEventListener("change", renderManagement);
+});
+document.getElementById("mgmtSortSelect").addEventListener("change", e=>{
+  mgmtSortKey = e.target.value;
+  renderManagement();
+});
+document.getElementById("mgmtSortDirBtn").addEventListener("click", ()=>{
+  mgmtSortDir *= -1;
+  renderManagement();
 });
 
 /* ---------------- Practice mode toggles by grade ---------------- */
