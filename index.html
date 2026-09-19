@@ -160,6 +160,14 @@
   .hud .timer{font-family:'Fraunces',serif;font-size:20px;color:var(--ink);}
   .hud .timer.low{color:var(--red-dark);}
   .staff-card{background:rgba(255,255,255,0.85);border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:var(--shadow);padding:12px 8px;display:flex;justify-content:center;min-height:150px;overflow-x:auto;}
+  .construction-question{text-align:center;margin-top:12px;padding:10px 16px;background:rgba(255,178,56,0.18);border:1.5px solid var(--gold);border-radius:var(--radius-sm);font-family:'Fraunces',serif;font-size:18px;font-weight:600;color:var(--ink);}
+  .construction-question b{color:var(--red-dark);}
+  .construction-controls{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:14px;}
+  .construction-controls .row-group{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;}
+  .construction-btn{background:rgba(255,255,255,0.75);color:var(--ink);border:1.5px solid var(--ink);box-shadow:none;font-weight:600;padding:10px 16px;font-size:14px;border-radius:var(--radius-sm);min-width:64px;}
+  .construction-btn.active{border-color:var(--red);background:#fdf1f1;color:var(--red-dark);box-shadow:inset 0 0 0 1px var(--red);}
+  .construction-btn.submit{background:var(--red);color:#fff;border-color:var(--red);box-shadow:0 3px 10px rgba(230,57,70,0.25);min-width:140px;margin-top:2px;}
+  .construction-hint{text-align:center;font-size:12px;color:var(--ink-soft);max-width:360px;}
   .feedback{min-height:22px;margin-top:12px;font-size:14px;font-weight:600;text-align:center;}
   .feedback.correct{color:var(--forest);}
   .feedback.incorrect{color:var(--red-dark);}
@@ -618,14 +626,19 @@
       <span class="timer" id="timerDisplay" aria-live="polite"></span>
     </div>
     <div class="staff-card"><div id="vfContainer"></div><div id="constructionContainer" style="display:none;"></div></div>
-    <div class="small" id="constructionTargetLabel" style="display:none;text-align:center;margin-top:8px;font-size:15px;"></div>
-    <div id="constructionControls" style="display:none;justify-content:center;gap:10px;margin-top:10px;">
-      <button type="button" class="secondary small-btn" id="constructionUpBtn">↑ Up</button>
-      <button type="button" class="secondary small-btn" id="constructionDownBtn">↓ Down</button>
-      <button type="button" class="secondary small-btn" id="constructionSharpBtn">♯ Sharp</button>
-      <button type="button" class="secondary small-btn" id="constructionFlatBtn">♭ Flat</button>
-      <button type="button" class="secondary small-btn" id="constructionNaturalBtn">♮ Natural</button>
-      <button type="button" class="small-btn" id="constructionSubmitBtn">Submit</button>
+    <div class="construction-question" id="constructionTargetLabel" style="display:none;"></div>
+    <div class="construction-controls" id="constructionControls" style="display:none;">
+      <div class="row-group">
+        <button type="button" class="construction-btn" id="constructionUpBtn" title="Move the note up (↑)">↑ Up</button>
+        <button type="button" class="construction-btn" id="constructionDownBtn" title="Move the note down (↓)">↓ Down</button>
+      </div>
+      <div class="row-group">
+        <button type="button" class="construction-btn" id="constructionSharpBtn" title="Toggle sharp (S)">♯ Sharp</button>
+        <button type="button" class="construction-btn" id="constructionFlatBtn" title="Toggle flat (F)">♭ Flat</button>
+        <button type="button" class="construction-btn" id="constructionNaturalBtn" title="Toggle natural (N)">♮ Natural</button>
+      </div>
+      <button type="button" class="construction-btn submit" id="constructionSubmitBtn" title="Submit your answer (Enter)">Submit ✓</button>
+      <div class="construction-hint">Use ↑ / ↓ to move the note, tap an accidental if needed, then Submit.</div>
     </div>
     <div class="feedback" id="feedback" role="status" aria-live="assertive"></div>
 
@@ -1271,8 +1284,12 @@ function studentNoteLabel(letterOnly){
 function isNaturalPc(pc){ return NATURAL_PCS.includes(pc); }
 
 /* ---------------- Key signatures (major only) ---------------- */
-const SHARP_KEYS = [{name:"C",pc:0},{name:"G",pc:7},{name:"D",pc:2},{name:"A",pc:9},{name:"E",pc:4},{name:"B",pc:11},{name:"F#",pc:6},{name:"C#",pc:1}];
-const FLAT_KEYS  = [{name:"C",pc:0},{name:"F",pc:5},{name:"Bb",pc:10},{name:"Eb",pc:3},{name:"Ab",pc:8},{name:"Db",pc:1},{name:"Gb",pc:6},{name:"Cb",pc:11}];
+// F#/C# and Cb were dropped: each is just an enharmonic respelling of Gb/Db
+// and B, and having both spellings as separate quizzable/answerable keys
+// only left students guessing between two equally-valid names for the same
+// key signature. Every pitch class now has exactly one canonical key name.
+const SHARP_KEYS = [{name:"C",pc:0},{name:"G",pc:7},{name:"D",pc:2},{name:"A",pc:9},{name:"E",pc:4},{name:"B",pc:11}];
+const FLAT_KEYS  = [{name:"C",pc:0},{name:"F",pc:5},{name:"Bb",pc:10},{name:"Eb",pc:3},{name:"Ab",pc:8},{name:"Db",pc:1},{name:"Gb",pc:6}];
 function findKeyByPc(pc, preferSharp){
   const primary = preferSharp ? SHARP_KEYS : FLAT_KEYS;
   const secondary = preferSharp ? FLAT_KEYS : SHARP_KEYS;
@@ -2339,10 +2356,11 @@ function enabledKeySignatures(){
   const enabled = all.filter(k => state.keySignaturePool[k.list+":"+k.name] !== false);
   return enabled.length ? enabled : all;
 }
-// Key Signature ID grid: naturals row, sharps row, flats row — each column
-// is a natural letter (C,D,E,F,G,A,B). Blank where the key isn't
-// conventionally used (E#, B#, Fb). Exact spelling required — no
-// enharmonic credit (D# is never accepted for Eb, etc.).
+// Key Signature ID grid: a naturals row plus a flats row — each column is a
+// natural letter (C,D,E,F,G,A,B). Every accidental key signature the app
+// quizzes on is spelled with a flat (Db/Eb/Gb/Ab/Bb); there's no separate
+// sharp-spelled row since a sharp spelling would just be an enharmonic
+// duplicate of one of these (e.g. no "D#" button — that key is always Eb).
 const KEYSIG_LETTER_COL = {C:1,D:2,E:3,F:4,G:5,A:6,B:7};
 function buildKeysigGridCells(){
   const cells = [];
@@ -2350,17 +2368,11 @@ function buildKeysigGridCells(){
     const pc = SHARP_NAMES.indexOf(letter);
     cells.push({label:letter, col:KEYSIG_LETTER_COL[letter], row:1, pc, preferSharp:true});
   });
-  [["C"],["D"],["E",true],["F"],["G"],["A"],["B",true]].forEach(([letter,blank])=>{
-    if(blank) return;
-    const naturalPc = SHARP_NAMES.indexOf(letter);
-    const pc = (naturalPc+1)%12;
-    cells.push({label:letter+"#", col:KEYSIG_LETTER_COL[letter], row:2, pc, preferSharp:true});
-  });
-  [["C"],["D"],["E"],["F",true],["G"],["A"],["B"]].forEach(([letter,blank])=>{
+  [["C",true],["D"],["E"],["F",true],["G"],["A"],["B"]].forEach(([letter,blank])=>{
     if(blank) return;
     const naturalPc = SHARP_NAMES.indexOf(letter);
     const pc = (naturalPc-1+12)%12;
-    cells.push({label:letter+"b", col:KEYSIG_LETTER_COL[letter], row:3, pc, preferSharp:false});
+    cells.push({label:letter+"b", col:KEYSIG_LETTER_COL[letter], row:2, pc, preferSharp:false});
   });
   return cells;
 }
@@ -2449,7 +2461,7 @@ function buildConstructionQuestion(){
 function renderConstructionStaff(q){
   document.getElementById("vfContainer").style.display = "none";
   document.getElementById("constructionTargetLabel").style.display = "block";
-  document.getElementById("constructionTargetLabel").innerHTML = `Build: <b>${q.displayName}</b> — use ↑ / ↓ to move the note, then set ♯ ♭ or ♮ if needed, then press Enter`;
+  document.getElementById("constructionTargetLabel").innerHTML = `Build: <b>${q.displayName}</b>`;
   const container = document.getElementById("constructionContainer");
   container.style.display = "block";
   document.getElementById("constructionControls").style.display = "flex";
@@ -2459,6 +2471,7 @@ function renderConstructionStaff(q){
   state.constructionIdxLo = idxLo; state.constructionIdxHi = idxHi;
   state.constructionIndex = 4; // start on the middle line
   state.constructionAccidental = null;
+  updateConstructionAccidentalButtons();
   drawConstructionStaff(q);
 }
 
@@ -2539,7 +2552,14 @@ function setConstructionAccidental(sym){
   const q = state.current;
   if(!q) return;
   state.constructionAccidental = (state.constructionAccidental === sym) ? null : sym;
+  updateConstructionAccidentalButtons();
   drawConstructionStaff(q);
+}
+function updateConstructionAccidentalButtons(){
+  const buttonsBySym = {sharp:"constructionSharpBtn", flat:"constructionFlatBtn", natural:"constructionNaturalBtn"};
+  Object.entries(buttonsBySym).forEach(([sym,id])=>{
+    document.getElementById(id).classList.toggle("active", state.constructionAccidental === sym);
+  });
 }
 function submitConstructionAnswer(){
   if(state.locked || state.mode !== "construction") return;
@@ -2573,18 +2593,20 @@ function buildKeysigOptionSet(){
 
 function buildKeySigQuestion(){
   const pool = enabledKeySignatures();
-  const concertKey = drawFromBag("keysig_"+state.instrument, pool, k=>{
-    const w = writtenKeyFor(k, state.instrument);
-    return "keysig_"+state.instrument+"_"+w.name;
-  });
+  const concertKey = drawFromBag("keysig_"+state.instrument, pool, k=>"keysig_"+state.instrument+"_"+k.name);
   const written = writtenKeyFor(concertKey, state.instrument);
   const isTransposing = TRANSPOSE_SEMITONES[state.instrument] !== 0;
   return {
     exerciseType:"keysig", instrument: state.instrument,
-    qKey: "keysig_"+state.instrument+"_"+written.name,
+    qKey: "keysig_"+state.instrument+"_"+concertKey.name,
     concertKey, writtenKey: written,
-    correctAnswer: written.name, // exact spelling required, no enharmonic credit
-    correctLabel: isTransposing ? (concertKey.name + " concert / " + written.name + " on " + INSTRUMENTS[state.instrument].label) : written.name,
+    // Always the concert-pitch key name — the staff shows the key signature
+    // as it's written for the student's instrument, but the answer is
+    // always what that signature actually sounds in concert pitch, not the
+    // transposed name (which, for trumpet/horn, is never one of the answer
+    // grid's own concert-key options anyway).
+    correctAnswer: concertKey.name,
+    correctLabel: isTransposing ? (concertKey.name + " concert (written as " + written.name + " on " + INSTRUMENTS[state.instrument].label + ")") : concertKey.name,
   };
 }
 
@@ -2622,8 +2644,13 @@ function renderStaffNote(m, accidentalSymbol, clef){
   voice.addTickables([note]);
   new VF.Formatter().joinVoices([voice]).format([voice], 180);
   const startX = stave.getNoteStartX(), endX = stave.getNoteEndX();
-  const centerX = (startX+endX)/2;
-  note.setXShift(centerX - note.getAbsoluteX());
+  const staveCenterX = (startX+endX)/2;
+  // Center the whole glyph — notehead plus any accidental — as one unit.
+  // Centering on the notehead's own anchor left a sharp/flat sticking out
+  // further left, off-center from the note it belongs next to.
+  const bb = note.getBoundingBox();
+  const glyphCenterX = bb.getX() + bb.getW()/2;
+  note.setXShift(staveCenterX - glyphCenterX);
   voice.draw(ctx, stave);
   const svg = container.querySelector("svg");
   if(svg){ svg.setAttribute("viewBox", `0 0 ${width} ${height}`); svg.setAttribute("width","100%"); svg.removeAttribute("height"); }
@@ -2709,7 +2736,9 @@ function valvesEqual(a,b){
 
 function startPractice(){
   state.bags = {};
-  document.getElementById("practiceModeLabel").textContent = MODE_LABELS[state.mode] + " — " + currentInstrument().label;
+  const isTransposingKeysig = state.mode === "keysig" && TRANSPOSE_SEMITONES[state.instrument] !== 0;
+  document.getElementById("practiceModeLabel").textContent = MODE_LABELS[state.mode] + " — " + currentInstrument().label
+    + (isTransposingKeysig ? " (answer in Concert Pitch, not " + currentInstrument().label + " pitch)" : "");
   document.getElementById("quizBanner").style.display = state.quizId ? "block" : "none";
   if(state.quizId){
     document.getElementById("quizBanner").textContent = state.quizIsGraded
@@ -3865,7 +3894,7 @@ function applyQuizDifficultyLevel(){
 document.getElementById("quizDifficultyLevel").addEventListener("change", applyQuizDifficultyLevel);
 document.querySelectorAll('input[name="quizLevel2choice"]').forEach(r=> r.addEventListener("change", applyQuizDifficultyLevel));
 
-const KEYSIG_FIFTHS_ORDER = ["Cb","Gb","Db","Ab","Eb","Bb","F","C","G","D","A","E","B","F#","C#"];
+const KEYSIG_FIFTHS_ORDER = ["Gb","Db","Ab","Eb","Bb","F","C","G","D","A","E","B"];
 function populateQuizKeysigSelect(){
   const grid = document.getElementById("quizKeysigGrid");
   grid.innerHTML = "";
@@ -4019,7 +4048,7 @@ async function loadQuizzes(){
       item.className = "quiz-list-item";
       item.innerHTML = `
         <div class="qname">${q.name} <span class="quiz-status ${status}">${label}</span></div>
-        <div class="small">${(q.categories||[]).map(c=>MODE_LABELS[c]||c).join(" + ")}${q.questionLimit?`, ${q.questionLimit}q`:""}${q.timeLimitMinutes?`, ${q.timeLimitMinutes}min`:""} · grades ${(q.grades||[]).join(",")} · ${openAt.toLocaleDateString()} → ${closeAt.toLocaleDateString()}</div>
+        <div class="small">${(q.categories||[]).map(c=>MODE_LABELS[c]||c).join(" + ")}${q.questionLimit?`, ${q.questionLimit}q`:""}${q.timeLimitMinutes?`, ${q.timeLimitMinutes}min`:""} · Grades ${(q.grades||[]).join(",")} · ${openAt.toLocaleDateString()} → ${closeAt.toLocaleDateString()}</div>
         <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap;">
           <button class="secondary small-btn" data-action="results">View results</button>
           <button class="ghost small-btn" data-action="edit">Edit</button>
