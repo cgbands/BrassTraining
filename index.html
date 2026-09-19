@@ -319,6 +319,14 @@
 </style>
 </head>
 <body>
+<!-- Auto-update banner: no service worker/build step, so a phone that
+     never fully relaunches the Home Screen app (or a browser tab left
+     open for days) can otherwise sit on stale code indefinitely. See the
+     script's "AUTO-UPDATE CHECK" block near the top for how this shows. -->
+<div id="updateBanner" style="display:none;position:fixed;left:0;right:0;bottom:0;background:var(--ink);color:#fff;padding:10px 14px calc(10px + env(safe-area-inset-bottom));font-size:13px;z-index:999;text-align:center;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;box-shadow:0 -2px 8px rgba(0,0,0,0.2);">
+  <span>A newer version of this app is available.</span>
+  <button class="small-btn" id="updateBannerBtn" style="background:var(--gold);border-color:var(--gold);color:var(--ink);">Refresh now</button>
+</div>
 <div id="simBanner" style="display:none;position:fixed;top:0;left:0;right:0;background:var(--gold);color:var(--ink);padding:calc(7px + env(safe-area-inset-top)) 14px 7px;font-size:12.5px;z-index:998;text-align:center;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;border-bottom:3px solid var(--red-dark);box-shadow:0 2px 8px rgba(0,0,0,0.15);">
   <span style="font-weight:700;">👁 Student View — nothing here is saved</span>
   <label style="margin:0;">Grade <select id="simGradeSwitch" style="padding:2px 4px;font-size:12.5px;border-radius:6px;">
@@ -1061,6 +1069,46 @@ const FV = firebase.firestore.FieldValue;
     document.body.prepend(banner);
     console.error("Firestore connectivity check failed:", err);
   }
+})();
+
+/* ================================================================
+   AUTO-UPDATE CHECK — this is a static file with no service worker and
+   no build step, so a phone that keeps the Home Screen app (or a browser
+   tab) open for days would otherwise sit on stale code indefinitely with
+   no way for the person using it to know. Instead of a service worker,
+   just re-fetch this same file with the HTTP cache bypassed, compare its
+   ETag/Last-Modified against the value seen when the page first loaded,
+   and show a small "Refresh now" banner if the server's copy has changed
+   — never an automatic reload, so it can't interrupt someone mid-round or
+   mid-quiz. Runs once on load (to record the baseline), again whenever
+   the tab/app is brought back to the foreground (the moment someone
+   actually returns to use it), and every 10 minutes while left open.
+   ================================================================ */
+(function(){
+  let baseline = null;
+  let notified = false;
+  async function getVersionTag(){
+    const res = await fetch(location.pathname + "?_=" + Date.now(), {cache:"no-store"});
+    return res.headers.get("ETag") || res.headers.get("Last-Modified");
+  }
+  async function checkForUpdate(){
+    if(notified) return;
+    try{
+      const tag = await getVersionTag();
+      if(!tag) return; // host isn't sending either header — nothing to compare against
+      if(baseline === null){ baseline = tag; return; }
+      if(tag !== baseline){
+        notified = true;
+        document.getElementById("updateBanner").style.display = "flex";
+      }
+    }catch(e){ /* offline, or the request was blocked — just try again next time */ }
+  }
+  checkForUpdate();
+  document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState === "visible") checkForUpdate(); });
+  setInterval(checkForUpdate, 10*60*1000);
+  document.addEventListener("click", e=>{
+    if(e.target.closest && e.target.closest("#updateBannerBtn")) location.reload();
+  });
 })();
 
 /* ================================================================
