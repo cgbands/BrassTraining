@@ -827,6 +827,19 @@
     <!-- RESOURCES -->
     <div class="tab-panel" id="tab-resources">
       <p class="small" style="margin-bottom:12px;">Links students see on their own Resources page — fingering charts, study guides for a quiz, videos, anything you want to point them to. Opens for them as a pop-up inside the app when possible; some sites don't allow that and will just offer "Open in new tab" instead.</p>
+
+      <div class="card" style="max-width:none;margin-bottom:14px;">
+        <div class="field-title"><label>Hide the Resources button entirely for these grades</label></div>
+        <p class="small" style="margin-top:-4px;">Independent of any individual resource's targeting below — this turns off the whole Resources page for everyone in a grade.</p>
+        <div class="checkline-row" id="resourceHideByGradeChecks"></div>
+      </div>
+
+      <div class="card" style="max-width:none;margin-bottom:14px;">
+        <div class="field-title"><label>Check what a specific student sees</label></div>
+        <select id="resourceCheckStudentSelect"><option value="">Choose a student…</option></select>
+        <div id="resourceCheckStudentResult" style="margin-top:8px;"></div>
+      </div>
+
       <div class="builder-cols">
         <div class="builder-col1">
           <div class="toolbar">
@@ -855,6 +868,7 @@
               <button class="secondary small-btn" id="resourceNewTypeSave">Add</button>
               <button class="ghost small-btn" id="resourceNewTypeCancel">Cancel</button>
             </div>
+            <div id="resourceTypeManageList"></div>
 
             <div id="resourceGradeLockWrap"></div>
 
@@ -1858,6 +1872,8 @@ function applyModeVisibility(){
   document.getElementById("constructionModeBtn").style.display = allowed.construction ? "block" : "none";
   document.querySelector('.mode-btn[data-mode="noteid"]').style.display = allowed.noteid ? "block" : "none";
   document.querySelector('.mode-btn[data-mode="position"]').style.display = allowed.position ? "block" : "none";
+  const resourcesHidden = !!(state.resourcesHiddenByGrade && state.resourcesHiddenByGrade[state.grade]);
+  document.getElementById("openResourcesBtn").style.display = resourcesHidden ? "none" : "";
 }
 
 document.getElementById("instrumentSelect").addEventListener("change", e=>{
@@ -3200,12 +3216,13 @@ async function loadModesConfig(){
       state.helpersAllowed = d.helpersAllowed !== false; // default true
       state.helpersLedgerLines = d.helpersLedgerLines || 0;
       state.resourceTypes = d.resourceTypes || [];
+      state.resourcesHiddenByGrade = d.resourcesHiddenByGrade || {};
     }
   }catch(err){ console.error("Couldn't load config", err); }
 }
 async function saveModesConfig(){
   try{
-    await db.collection("config").doc("settings_"+configScope()).set({modesByGrade: state.modesByGrade, modesByGradeInstrument: state.modesByGradeInstrument || {}, globalQuizHidden: !!state.globalQuizHidden, focusSettings: state.focusSettings || {}, helpersAllowed: state.helpersAllowed !== false, helpersLedgerLines: state.helpersLedgerLines || 0, resourceTypes: state.resourceTypes || []}, {merge:true});
+    await db.collection("config").doc("settings_"+configScope()).set({modesByGrade: state.modesByGrade, modesByGradeInstrument: state.modesByGradeInstrument || {}, globalQuizHidden: !!state.globalQuizHidden, focusSettings: state.focusSettings || {}, helpersAllowed: state.helpersAllowed !== false, helpersLedgerLines: state.helpersLedgerLines || 0, resourceTypes: state.resourceTypes || [], resourcesHiddenByGrade: state.resourcesHiddenByGrade || {}}, {merge:true});
   }catch(err){ console.error(err); }
 }
 document.getElementById("globalHideQuizToggle").addEventListener("change", async e=>{
@@ -3906,12 +3923,37 @@ async function loadQuizzes(){
    not Focus-specific — gate which grades/instruments he can check so a
    resource he posts can never reach a student outside his view).
    ================================================================ */
-function renderResourceTypeOptions(){
+// extraType: a resource being edited may carry a type that's since been
+// removed from the master list below — show it in the dropdown for this
+// one resource without silently re-adding it to state.resourceTypes
+// (which could otherwise get persisted back on the next unrelated save).
+function renderResourceTypeOptions(extraType){
   const sel = document.getElementById("resourceTypeSelect");
   const cur = sel.value;
   const types = ["General", ...(state.resourceTypes||[])];
+  if(extraType && !types.includes(extraType)) types.push(extraType);
   sel.innerHTML = types.map(t=>`<option value="${t}">${t}</option>`).join("") + '<option value="__new__">+ Add new type…</option>';
   if(types.includes(cur)) sel.value = cur;
+}
+// "General" is always available and can't be removed — it's the fallback
+// for resources whose custom type was later deleted from this list.
+function renderResourceTypeManageList(){
+  const el = document.getElementById("resourceTypeManageList");
+  const types = state.resourceTypes || [];
+  if(!types.length){ el.innerHTML = ""; return; }
+  el.innerHTML = `<p class="small" style="margin:8px 0 4px;">Remove a type (existing resources keep showing it — this only affects new ones):</p>` +
+    types.map(t=>`<span class="checkline" style="display:inline-flex;align-items:center;margin:0 8px 6px 0;background:rgba(35,34,43,0.05);border-radius:8px;padding:2px 4px 2px 10px;">${t}<button type="button" class="ghost small-btn" data-remove-type="${t}" style="padding:2px 8px;margin-left:2px;color:var(--red-dark);">×</button></span>`).join("");
+  el.querySelectorAll("[data-remove-type]").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      const t = btn.dataset.removeType;
+      if(!confirm(`Remove "${t}" from the type list? Resources already using it are unaffected — this only removes it as a choice for new ones.`)) return;
+      state.resourceTypes = (state.resourceTypes||[]).filter(x=>x!==t);
+      await saveModesConfig();
+      renderResourceTypeOptions();
+      renderResourceTypeManageList();
+      if(document.getElementById("resourceTypeSelect").value === t) document.getElementById("resourceTypeSelect").value = "General";
+    });
+  });
 }
 document.getElementById("resourceTypeSelect").addEventListener("change", e=>{
   if(e.target.value === "__new__"){
@@ -3928,6 +3970,7 @@ document.getElementById("resourceNewTypeSave").addEventListener("click", async (
   if(!state.resourceTypes.includes(name)) state.resourceTypes.push(name);
   await saveModesConfig();
   renderResourceTypeOptions();
+  renderResourceTypeManageList();
   document.getElementById("resourceTypeSelect").value = name;
   document.getElementById("resourceNewTypeRow").style.display = "none";
 });
@@ -4038,6 +4081,7 @@ function resetResourceBuilderForm(){
   document.getElementById("resourceDesc").value = "";
   document.getElementById("resourceUrl").value = "";
   renderResourceTypeOptions();
+  renderResourceTypeManageList();
   document.getElementById("resourceTypeSelect").value = "General";
   document.getElementById("resourceNewTypeRow").style.display = "none";
   if(state.teacherRestrictedView){
@@ -4058,8 +4102,8 @@ function loadResourceForEditing(r){
   document.getElementById("resourceDesc").value = r.description || "";
   document.getElementById("resourceUrl").value = r.url || "";
   const t = r.type || "General";
-  if(t !== "General" && !(state.resourceTypes||[]).includes(t)){ state.resourceTypes = state.resourceTypes || []; state.resourceTypes.push(t); }
-  renderResourceTypeOptions();
+  renderResourceTypeOptions(t);
+  renderResourceTypeManageList();
   document.getElementById("resourceTypeSelect").value = t;
   document.getElementById("resourceNewTypeRow").style.display = "none";
   if(state.teacherRestrictedView){
@@ -4119,6 +4163,54 @@ document.getElementById("saveResourceBtn").addEventListener("click", async ()=>{
   }catch(err){ console.error(err); msg.textContent = "Couldn't save — check your connection."; }
 });
 
+// Restricted-view teachers can only toggle a "whole" grade here (same rule
+// as everywhere else) — a partial grade like Bolla's 6th grade trumpet/horn
+// slice can't be hidden as a whole grade without also hiding the Resources
+// button from the Trombone/Baritone/Tuba 6th graders outside his view.
+function renderResourceHideByGradeChecks(){
+  const el = document.getElementById("resourceHideByGradeChecks");
+  const hidden = state.resourcesHiddenByGrade || {};
+  const restrictedGradeOptions = restrictedGradeOptionsFor(state.teacherRestrictedView);
+  const wholeGrades = restrictedGradeOptions ? restrictedGradeOptions.filter(g=>isWholeGradeForTeacher(g)) : [6,7,8];
+  let html = wholeGrades.map(g=>`<label class="checkline"><input type="checkbox" class="resourceHideGrade" data-grade="${g}" ${hidden[g]?"checked":""}> Grade ${g}</label>`).join("");
+  if(restrictedGradeOptions && restrictedGradeOptions.includes(6) && !wholeGrades.includes(6)){
+    html += `<p class="small" style="width:100%;margin-top:6px;">Grade 6 isn't offered here since you only see part of it.</p>`;
+  }
+  el.innerHTML = html || `<p class="small">None of your grades can be toggled here.</p>`;
+  el.querySelectorAll(".resourceHideGrade").forEach(cb=>{
+    cb.addEventListener("change", async ()=>{
+      state.resourcesHiddenByGrade = state.resourcesHiddenByGrade || {};
+      state.resourcesHiddenByGrade[cb.dataset.grade] = cb.checked;
+      await saveModesConfig();
+    });
+  });
+}
+
+function resourceAppliesToStudentObj(r, s){
+  const override = r.studentOverrides && r.studentOverrides[s.id];
+  if(override && override.enabled === true) return true;
+  if(override && override.enabled === false) return false;
+  if(r.grades && r.grades.includes(s.grade)) return true;
+  if(r.instruments && r.instruments.includes(s.primaryInstrument)) return true;
+  return false;
+}
+function populateResourceCheckStudentSelect(){
+  document.getElementById("resourceCheckStudentSelect").innerHTML = '<option value="">Choose a student…</option>' +
+    state.allStudents.map(s=>`<option value="${s.id}">${s.displayName} (Grade ${s.grade})</option>`).join("");
+}
+document.getElementById("resourceCheckStudentSelect").addEventListener("change", ()=>{
+  const sid = document.getElementById("resourceCheckStudentSelect").value;
+  const resultEl = document.getElementById("resourceCheckStudentResult");
+  if(!sid){ resultEl.innerHTML = ""; return; }
+  const s = state.allStudents.find(x=>x.id===sid);
+  const hiddenForGrade = !!(state.resourcesHiddenByGrade && state.resourcesHiddenByGrade[s.grade]);
+  if(hiddenForGrade){ resultEl.innerHTML = `<p class="small">${s.displayName}'s Resources button is hidden for Grade ${s.grade} — the checks below wouldn't matter until that's turned back on above.</p>`; return; }
+  const matches = (state.resourcesCache||[]).filter(r=>!r.archived && resourceAppliesToStudentObj(r, s));
+  if(!matches.length){ resultEl.innerHTML = `<p class="small">${s.displayName} doesn't see any resources right now.</p>`; return; }
+  resultEl.innerHTML = `<p class="small">${s.displayName} sees:</p><ul style="margin:4px 0 0 18px;padding:0;">` +
+    matches.map(r=>`<li class="small">${r.title} <span style="color:var(--ink-soft);">(${r.type||"General"})</span></li>`).join("") + `</ul>`;
+});
+
 async function loadResources(){
   const listEl = document.getElementById("resourceList");
   listEl.innerHTML = "";
@@ -4126,6 +4218,8 @@ async function loadResources(){
     const snap = await db.collection("resources").where("school","==", state.teacherSchool).get();
     state.resourcesCache = [];
     snap.forEach(doc=> state.resourcesCache.push(Object.assign({id:doc.id}, doc.data())));
+    renderResourceHideByGradeChecks();
+    populateResourceCheckStudentSelect();
     // Bolla only ever manages resources he created himself; full-roster
     // teachers see and manage every resource at their school, same as
     // they always could before restricted-view teachers existed.
