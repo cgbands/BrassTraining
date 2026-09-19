@@ -329,17 +329,25 @@
       grid-template-columns:1fr 1fr;
       grid-template-areas:
         "first last"
-        "user user"
-        "grade inst"
-        "pin pin"
-        "actions actions";
+        "grade inst";
       gap:6px;
       border-radius:var(--radius-sm);border:1px solid var(--line);margin-bottom:6px;padding:9px 10px;
+      cursor:pointer;
     }
     .mgmt-row:last-child{margin-bottom:0;}
     .mgmt-row input, .mgmt-row select{padding:6px 8px;font-size:12.5px;}
     .mgmt-user{color:var(--ink-soft);font-size:11.5px;}
-    .mgmt-actions{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:2px;}
+    .mgmt-row .mgmt-user, .mgmt-row .mgmt-pin, .mgmt-row .mgmt-actions{display:none;}
+    .mgmt-row.expanded{
+      grid-template-areas:
+        "first last"
+        "user user"
+        "grade inst"
+        "pin pin"
+        "actions actions";
+    }
+    .mgmt-row.expanded .mgmt-user, .mgmt-row.expanded .mgmt-pin{display:block;}
+    .mgmt-row.expanded .mgmt-actions{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:2px;}
     .mgmt-actions button{width:100%;margin:0;padding:6px 8px;font-size:11.5px;}
   }
   @media (max-width:520px){
@@ -4878,6 +4886,12 @@ function renderManagement(){
   });
   wrap.innerHTML = html;
 
+  wrap.querySelectorAll(".mgmt-row").forEach(row=>{
+    row.addEventListener("click", e=>{
+      if(e.target.closest("input,select,button")) return;
+      row.classList.toggle("expanded");
+    });
+  });
   wrap.querySelectorAll("[data-mgmt-sort]").forEach(th=>{
     th.addEventListener("click", ()=>{
       const key = th.dataset.mgmtSort;
