@@ -105,6 +105,7 @@
   .grade-pick{display:flex;gap:8px;}
   .grade-pick button{flex:1;background:#fff;color:var(--ink);border:1px solid var(--line);font-family:'Fraunces',serif;font-size:16px;}
   .grade-pick button.selected{background:var(--red);color:#fff;border-color:var(--red);}
+  .grade-pick button.selected .small{color:#fff;}
   #focusInstrumentPicker button{flex:1 1 30%;font-size:13px;padding:8px 6px;}
   .focusInst{accent-color:var(--red);width:16px;height:16px;}
   label.current-editing{outline:2px solid var(--red);outline-offset:3px;border-radius:6px;background:rgba(230,57,70,0.08);}
@@ -4543,8 +4544,12 @@ function renderResourceHideByGradeChecks(){
   const wholeGrades = restrictedGradeOptions ? restrictedGradeOptions.filter(g=>isWholeGradeForTeacher(g)) : [6,7,8];
   // Clickable toggle buttons (same look as the grade pickers elsewhere in
   // the app), not checkboxes — a red "selected" button means hidden.
+  // Every button reserves the same two-line shape (label, then a status
+  // line underneath) regardless of hidden state, so "Grade 7" doesn't wrap
+  // onto a second line and sit lower than "Grade 6"/"Grade 8" once its
+  // status text is appended.
   let html = `<div class="grade-pick">` + wholeGrades.map(g=>
-    `<button type="button" class="resourceHideGradeBtn ${hidden[g]?'selected':''}" data-grade="${g}">Grade ${g}${hidden[g]?' — hidden':''}</button>`
+    `<button type="button" class="resourceHideGradeBtn ${hidden[g]?'selected':''}" data-grade="${g}">Grade ${g}<div class="small" style="margin-top:2px;visibility:${hidden[g]?'visible':'hidden'};">hidden</div></button>`
   ).join("") + `</div>`;
   if(restrictedGradeOptions && restrictedGradeOptions.includes(6) && !wholeGrades.includes(6)){
     html += `<p class="small" style="width:100%;margin-top:6px;">Grade 6 isn't offered here since you only see part of it.</p>`;
