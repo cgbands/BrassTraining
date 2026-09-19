@@ -830,7 +830,7 @@
       <div class="card" style="max-width:none;margin-bottom:14px;">
         <div class="field-title"><label>Hide the Resources button entirely for these grades</label></div>
         <p class="small" style="margin-top:-4px;">Independent of any individual resource's targeting below — this turns off the whole Resources page for everyone in a grade.</p>
-        <div class="checkline-row" id="resourceHideByGradeChecks"></div>
+        <div class="checkline-row" id="resourceHideByGradeChecks"><p class="small">Loading…</p></div>
       </div>
 
       <div class="card" style="max-width:none;margin-bottom:14px;">
@@ -1389,6 +1389,28 @@ function resetLoginForm(){
   document.querySelectorAll("#schoolPick button").forEach(x=>x.classList.remove("selected"));
   loginBtn.textContent = "Go";
 }
+// Shared by the normal login flow and resumeStudentSession() (a refresh
+// picking this same student back up without asking for the PIN again).
+// Remembering their ID like this — not their PIN — is the same tradeoff
+// already made for the teacher session: on a shared/lab computer that
+// never gets logged out between students, the next person to open the
+// browser resumes whoever was there last, so logging out matters more
+// now than it used to.
+function enterStudentSession(id, fd){
+  state.username = id;
+  state.displayName = fd.displayName;
+  state.firstName = fd.firstName || fd.displayName.split(" ")[0];
+  state.grade = fd.grade;
+  state.school = fd.school || "MSN";
+  state.primaryInstrument = fd.primaryInstrument || null;
+  state.savedSettingsByInstrument = fd.lastSettingsByInstrument || {};
+  state.focusOverride = fd.focusOverride || {};
+  document.getElementById("setupGreeting").textContent = "Hi, " + state.firstName;
+  try{
+    localStorage.setItem("bt_studentSession", id);
+    localStorage.removeItem("bt_teacherSession");
+  }catch(e){}
+}
 [firstNameInput, lastNameInput, pinLoginInput].forEach(el=>{
   el.addEventListener("keydown", e=>{ if(e.key === "Enter") loginBtn.click(); });
 });
@@ -1443,18 +1465,10 @@ loginBtn.addEventListener("click", async ()=>{
       }
       if(suffix > 25){ loginMsg.textContent = "Check your name and PIN, or ask your teacher."; loginBtn.disabled=false; loginBtn.textContent="Go"; return; }
     }
-    state.username = finalId;
     const finalSnap = await db.collection("students").doc(finalId).get();
     const fd = finalSnap.data();
-    state.displayName = fd.displayName;
-    state.firstName = fd.firstName || fd.displayName.split(" ")[0];
     try{ localStorage.setItem("bt_firstName", first); localStorage.setItem("bt_lastName", last); }catch(e){}
-    state.grade = fd.grade;
-    state.school = fd.school || "MSN";
-    state.primaryInstrument = fd.primaryInstrument || null;
-    state.savedSettingsByInstrument = fd.lastSettingsByInstrument || {};
-    state.focusOverride = fd.focusOverride || {};
-    document.getElementById("setupGreeting").textContent = "Hi, " + state.firstName;
+    enterStudentSession(finalId, fd);
     resetLoginForm();
     await loadModesConfig();
     await resetSetupScreen();
@@ -1496,7 +1510,10 @@ function enterTeacherDashboard(username, teacher){
   state.teacherLabel = teacher.label;
   state.teacherViewOnly = !!teacher.viewOnly;
   state.teacherRestrictedView = teacher.restrictedView || null;
-  try{ localStorage.setItem("bt_teacherSession", username); }catch(e){ /* private browsing etc — session just won't survive a refresh */ }
+  try{
+    localStorage.setItem("bt_teacherSession", username);
+    localStorage.removeItem("bt_studentSession");
+  }catch(e){ /* private browsing etc — session just won't survive a refresh */ }
   openDashboard();
 }
 document.getElementById("pinSubmitBtn").addEventListener("click", async ()=>{
@@ -1512,13 +1529,37 @@ document.getElementById("pinSubmitBtn").addEventListener("click", async ()=>{
   } else { msg.textContent = "Incorrect PIN."; }
 });
 
-(async function resumeTeacherSession(){
-  let savedUsername = null;
-  try{ savedUsername = localStorage.getItem("bt_teacherSession"); }catch(e){ return; }
-  if(!savedUsername || !TEACHERS[savedUsername]) return;
-  const teacher = await getEffectiveTeacher(savedUsername);
-  if(!teacher) return;
-  enterTeacherDashboard(savedUsername, teacher);
+// A refresh used to always drop everyone back to a blank login screen —
+// this picks either a teacher or a student back up from where they left
+// off. The two localStorage keys are cross-cleared on every login/logout
+// so normally only one is ever set; the both-set check below is just a
+// guard against stale leftover state from before this existed.
+(async function resumeSession(){
+  let teacherUsername = null, studentId = null;
+  try{
+    teacherUsername = localStorage.getItem("bt_teacherSession");
+    studentId = localStorage.getItem("bt_studentSession");
+  }catch(e){ return; }
+  if(teacherUsername && studentId){
+    try{ localStorage.removeItem("bt_studentSession"); }catch(e){}
+    studentId = null;
+  }
+  if(teacherUsername && TEACHERS[teacherUsername]){
+    const teacher = await getEffectiveTeacher(teacherUsername);
+    if(teacher) enterTeacherDashboard(teacherUsername, teacher);
+    return;
+  }
+  if(studentId){
+    try{
+      const snap = await db.collection("students").doc(studentId).get();
+      if(!snap.exists || snap.data().dropped){ try{ localStorage.removeItem("bt_studentSession"); }catch(e){} return; }
+      enterStudentSession(studentId, snap.data());
+      await loadModesConfig();
+      await resetSetupScreen();
+      await checkForActiveQuiz();
+      showScreen("setupScreen");
+    }catch(err){ console.error("Couldn't resume student session", err); }
+  }
 })();
 
 /* ================================================================
@@ -1612,7 +1653,7 @@ function logout(){
   state.teacherUsername = null; state.teacherSchool = null; state.teacherLabel = null;
   state.teacherViewOnly = false; state.teacherRestrictedView = null;
   document.body.classList.remove("view-only", "restricted-view");
-  try{ localStorage.removeItem("bt_teacherSession"); }catch(e){}
+  try{ localStorage.removeItem("bt_teacherSession"); localStorage.removeItem("bt_studentSession"); }catch(e){}
   clearRoundTimer();
   firstNameInput.value = localStorage.getItem("bt_firstName") || "";
   lastNameInput.value = localStorage.getItem("bt_lastName") || "";
@@ -3253,13 +3294,18 @@ async function saveModesConfig(){
    collectionGroup (filtered by the archive cutoff), not the legacy
    per-student counters, so archiving/deleting actually works.
    ================================================================ */
+function switchDashTab(tabName){
+  const btn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+  const panel = document.getElementById("tab-"+tabName);
+  if(!btn || !panel) return;
+  document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
+  document.querySelectorAll(".tab-panel").forEach(p=>p.classList.remove("active"));
+  btn.classList.add("active");
+  panel.classList.add("active");
+  try{ localStorage.setItem("bt_teacherLastTab", tabName); }catch(e){}
+}
 document.querySelectorAll(".tab-btn").forEach(btn=>{
-  btn.addEventListener("click", ()=>{
-    document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
-    document.querySelectorAll(".tab-panel").forEach(p=>p.classList.remove("active"));
-    btn.classList.add("active");
-    document.getElementById("tab-"+btn.dataset.tab).classList.add("active");
-  });
+  btn.addEventListener("click", ()=>switchDashTab(btn.dataset.tab));
 });
 
 async function openDashboard(){
@@ -3278,21 +3324,37 @@ async function openDashboard(){
     state.droppedStudents = students.filter(s=>s.dropped && inView(s));
 
     buildDashRows();
-    await loadQuizzes();
-    loadQuizInstrumentIntoForm();
-    populateQuizFilterDropdown();
-    await applyQuizScores(document.getElementById("quizFilterSelect").value);
-    await loadResources();
-    renderStatRow();
-    renderTroubleSpots();
-    renderPracticeData();
-    renderAdditionalInstrument();
-    renderManagement();
-    renderModeToggles();
+    // Each tab's section below used to be one long unbroken chain — a
+    // failure partway through (e.g. quizzes) silently prevented every
+    // section after it from ever running, including Resources, with
+    // nothing but a subtitle message most people wouldn't think to check.
+    // Each section now fails on its own instead of taking the rest down
+    // with it, and logs which one broke.
+    const loadSection = async (label, fn) => {
+      try{ await fn(); }
+      catch(err){ console.error(`Dashboard section "${label}" failed to load:`, err); }
+    };
+    await loadSection("quizzes", async ()=>{
+      await loadQuizzes();
+      loadQuizInstrumentIntoForm();
+      populateQuizFilterDropdown();
+      await applyQuizScores(document.getElementById("quizFilterSelect").value);
+    });
+    await loadSection("resources", loadResources);
+    await loadSection("overview stats", async ()=>renderStatRow());
+    await loadSection("trouble spots", async ()=>renderTroubleSpots());
+    await loadSection("practice data", async ()=>renderPracticeData());
+    await loadSection("additional instrument", async ()=>renderAdditionalInstrument());
+    await loadSection("student management", async ()=>renderManagement());
+    await loadSection("mode toggles", async ()=>renderModeToggles());
     document.getElementById("helpersAllowedToggle").checked = state.helpersAllowed !== false;
     document.getElementById("helpersLedgerLinesSelect").value = String(state.helpersLedgerLines || 0);
     applyViewOnlyMode();
     document.getElementById("dashSubtitle").textContent = state.allStudents.length + " active student" + (state.allStudents.length===1?"":"s") + (state.teacherViewOnly ? " (view only)" : "");
+    try{
+      const lastTab = localStorage.getItem("bt_teacherLastTab");
+      if(lastTab) switchDashTab(lastTab);
+    }catch(e){}
   }catch(err){
     console.error(err);
     document.getElementById("dashSubtitle").textContent = "Couldn't load data: " + (err.message || err.code || "unknown error");
@@ -4305,7 +4367,17 @@ async function loadResources(){
       });
       listEl.appendChild(item);
     });
-  }catch(err){ console.error(err); }
+  }catch(err){
+    console.error("loadResources failed:", err);
+    // Surface the real error right where the blank space would otherwise
+    // be, instead of only in the console — this is the one place several
+    // reports of "the grade buttons are just blank" turned out to be
+    // undiagnosable without opening dev tools.
+    const errMsg = "Couldn't load: " + (err.message || err.code || "unknown error");
+    document.getElementById("resourceHideByGradeChecks").innerHTML = `<p class="small" style="color:var(--red-dark);">${errMsg}</p>`;
+    document.getElementById("resourceEmpty").textContent = errMsg;
+    document.getElementById("resourceEmpty").style.display = "block";
+  }
 }
 
 let quizResultsSortKey = "name";
