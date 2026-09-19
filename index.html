@@ -941,7 +941,7 @@
 <div class="drawer-back" id="csvModalBack">
   <div class="drawer" style="max-width:420px;">
     <div class="row" style="justify-content:space-between;"><h2>Export CSV</h2><button class="ghost" id="closeCsvModal">Close</button></div>
-    <p class="small" style="margin-top:6px;">One row per student. Each quiz you pick gets its own column — quizzes are never averaged together.</p>
+    <p class="small" style="margin-top:6px;">Exports one row per student, with each quiz you pick as its own column.</p>
     <label style="margin-top:10px;">Grade(s) to include</label>
     <div class="checkline-row"><label class="checkline"><input type="checkbox" class="csvGrade" value="6" checked> 6</label><label class="checkline"><input type="checkbox" class="csvGrade" value="7" checked> 7</label><label class="checkline"><input type="checkbox" class="csvGrade" value="8" checked> 8</label></div>
     <label style="margin-top:10px;">Quiz(zes) to include</label>
@@ -4594,9 +4594,10 @@ document.getElementById("runCsvExportBtn").addEventListener("click", async ()=>{
     }
   }catch(err){ console.error("Couldn't load quiz data for export", err); }
 
-  const header = ["First","Last","Grade","Instr","Answered","Practice %",
-    "Note ID %","Note ID #","Position %","Position #","Key Sig %","Key Sig #","Constr %","Constr #","Other Instr %","Other Instr #",
-    ...selectedQuizzes.map(q=>q.name)];
+  const header = ["First","Last","Grade","Instr",
+    ...selectedQuizzes.map(q=>q.name),
+    "Total Answered","Practice %",
+    "Note ID %","Note ID #","Position %","Position #","Key Sig %","Key Sig #","Note Constr %","Note Constr #","Other Instr %","Other Instr #"];
   const lines = [header.map(csvEscape).join(",")];
 
   function typeAccFor(r, exerciseType){
@@ -4622,11 +4623,11 @@ document.getElementById("runCsvExportBtn").addEventListener("click", async ()=>{
       s.lastName || r.displayName.split(" ").slice(1).join(" ") || "",
       r.grade,
       r.primaryInstrument ? CATEGORY_LABELS[r.primaryInstrument] : "",
+      ...selectedQuizzes.map(q=> quizScores[q.id]===undefined ? "" : quizScores[q.id]),
       r.totalAnswered,
       r.accuracy===null ? "" : r.accuracy,
       noteId.pct, noteId.frac, position.pct, position.frac, keysig.pct, keysig.frac, construction.pct, construction.frac,
-      otherPct, otherFrac,
-      ...selectedQuizzes.map(q=> quizScores[q.id]===undefined ? "" : quizScores[q.id])
+      otherPct, otherFrac
     ].map(csvEscape).join(","));
   });
 
